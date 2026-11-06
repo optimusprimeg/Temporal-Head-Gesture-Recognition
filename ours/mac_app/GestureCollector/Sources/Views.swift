@@ -126,14 +126,20 @@ struct CheckView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Device check").font(.title).bold()
-            CheckLine(ok: rec.rateHz > 40, text: String(format: "Rate %.0f Hz (about 50)", rec.rateHz))
+            Text("Device check").font(.title).bold().onAppear { model.detectAirPods() }
+            CheckLine(ok: rec.rateHz > 20, text: String(format: "Rate %.0f Hz (50, or 25 on some models)", rec.rateHz))
             CheckLine(ok: abs(rec.gravityNorm - 9.81) < 0.5, text: String(format: "|g| %.2f m/s² (about 9.81)", rec.gravityNorm))
             CheckLine(ok: rec.location != "-", text: "Streaming earbud: \(rec.location)")
+            if let n = model.detected["name"] {
+                Text("macOS sees: \(n)  (product \(model.detected["productID"] ?? "?"), firmware \(model.detected["firmware"] ?? "?")). Saved with the session; check it matches \"\(model.device)\".")
+                    .font(.caption)
+            } else if let e = model.detected["error"] {
+                Text("Model detection: \(e)").font(.caption).foregroundColor(.secondary)
+            }
             Text(rec.status).foregroundColor(rec.healthy ? .green : .orange)
             HStack(alignment: .top, spacing: 30) {
                 VStack {
-                    LiveHead(recorder: rec, reference: model.reference)
+                    LiveHead(recorder: rec, reference: model.reference).frame(width: 240, height: 240)
                     Button("Set front (look straight ahead, then click)") { model.reference = rec.angles }
                 }
                 Text("Ask the participant to nod, tilt and turn: the head should follow.\n\nKeep BOTH AirPods in for the whole session. If one comes out, the stream moves to the other bud and the app will ask for a new calibration.")
@@ -222,10 +228,15 @@ struct RunView: View {
                     Text(runner.title).font(.system(size: 34, weight: .bold)).fixedSize(horizontal: false, vertical: true)
                     Text(runner.sub).font(.title3).fixedSize(horizontal: false, vertical: true)
                     if runner.countdown > 0 { Text(String(format: "%.1f s", runner.countdown)).font(.title2).monospacedDigit() }
+                    if !runner.feedback.isEmpty {
+                        Text(runner.feedback).font(.title2.bold())
+                            .foregroundColor(runner.feedbackOK ? .green : .orange)
+                    }
                 }
                 Spacer()
-                if MotionPose.isMotion(runner.motion) { MotionDemo(motion: runner.motion) }
+                TwoHeads(motion: runner.motion, recorder: rec, reference: model.reference)
             }
+            Button("Set front (look straight ahead, then click)") { model.reference = rec.angles }.font(.caption)
             Spacer()
             switch runner.phase {
             case .waitingContinue:

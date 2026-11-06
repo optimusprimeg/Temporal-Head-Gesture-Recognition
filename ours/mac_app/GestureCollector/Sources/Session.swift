@@ -12,9 +12,11 @@ import AppKit
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "2.0.0"
-let PROTOCOL_VERSION = "v2-2026-11"
-let CUE_HEADER = "host_ns,sensor_ns_est,block,kind,round,trial,step,motion,condition,window_s,note,module,attempt,status\n"
+let APP_VERSION = "2.1.0"
+let PROTOCOL_VERSION = "v2.1-2026-11"
+// v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
+// labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
+let CUE_HEADER = "host_ns,sensor_ns_est,block,kind,round,trial,step,motion,condition,window_s,note,module,attempt,status,shown_sensor_ns,live_events,live_verdict\n"
 
 struct SessionMeta: Codable {
     var participant: String        // "P05"
@@ -41,6 +43,10 @@ struct SessionMeta: Codable {
     var earbudSwitches: Int = 0
     var gaps: Int = 0
     var segments: Int = 0
+    // v2.1 (optional so v2.0 files still load)
+    var detectedAirPods: [String: String]? = nil   // name, product ID, firmware read from macOS Bluetooth
+    var liveChecked: Int? = nil
+    var liveOK: Int? = nil
 }
 
 struct SessionState: Codable {
@@ -124,6 +130,8 @@ final class SessionRunner: ObservableObject {
     @Published var progress = 0.0
     @Published var remainingS = 0.0
     @Published var banner = ""           // warnings (earbud switch, gap)
+    @Published var feedback = ""         // result of the one-motion check for the last trial
+    @Published var feedbackOK = true
     @Published private(set) var state: SessionState?
 
     let folder: URL
@@ -180,15 +188,22 @@ final class SessionRunner: ObservableObject {
         s.contains(",") || s.contains("\"") || s.contains("\n") ? "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\"" : s
     }
 
-    private func logCue(_ st: Step, hostNs: Int64, sensorNs: Int64, status: String, note: String = "") {
+    private func logCue(_ st: Step, hostNs: Int64, sensorNs: Int64, status: String, note: String = "",
+                        shownNs: Int64? = nil, live: LiveVerdict? = nil) {
         guard var s = state else { return }
         s.trial += 1
-        let key = "\(st.block)|\(st.round)|\(st.step)|\(st.motion)"
+        // the same planned trial repeated (after a switch/gap) keeps its uid; two idles in one round do not collide
+        let key = st.uid.map { "uid\($0)" } ?? "\(st.block)|\(st.round)|\(st.step)|\(st.motion)|t\(s.trial)"
         s.attempts[key, default: 0] += 1
+        if let v = live {
+            s.meta.liveChecked = (s.meta.liveChecked ?? 0) + 1
+            if v.ok { s.meta.liveOK = (s.meta.liveOK ?? 0) + 1 }
+        }
         let fields: [String] = [String(hostNs), String(sensorNs), st.block, st.cueKind, String(st.round), String(s.trial),
                                 String(st.step), st.motion, st.condition, String(format: "%.2f", st.windowS),
                                 [st.note, note].filter { !$0.isEmpty }.joined(separator: "; "), st.module,
-                                String(s.attempts[key] ?? 1), status]
+                                String(s.attempts[key] ?? 1), status, shownNs.map { String($0) } ?? "",
+                                live.map { String($0.count) } ?? "", live?.text ?? ""]
         state = s
         if let d = (fields.map(csv).joined(separator: ",") + "\n").data(using: .utf8) { cueFile?.write(d) }
         try? cueFile?.synchronize()
@@ -322,6 +337,19 @@ final class SessionRunner: ObservableObject {
         finish()
     }
 
+    /// How many motions a cue asks for (nil = not checked: pairs, the look-around, the closing still).
+    private func expectedMotions(_ st: Step) -> Int? {
+        switch st.cueKind {
+        case "rounds", "practice": return st.motion == "idle" ? 0 : 1
+        case "commands": return 2
+        case "calibration":
+            if st.motion == "calib_nod" { return 1 }
+            if st.motion == "still" && st.module != "closing" { return 0 }
+            return nil
+        default: return nil
+        }
+    }
+
     private func run(_ st: Step) async {
         title = st.text
         sub = st.sub
@@ -331,19 +359,32 @@ final class SessionRunner: ObservableObject {
             await speaker.say(st.text.lowercased())
             await waitForButton(.waitingContinue)
         case .cue:
+            // v2.1 flow: show + speak the motion (= announced, logged), short pause, GO beep, window, then the
+            // one-motion check. No separate ready beep: people move on the name anyway (P01: 61 % before GO).
             motion = st.motion
+            feedback = ""
+            let shown = sensorNowNs()
+            let stillCalib = st.cueKind == "calibration" && st.motion == "still"
             if !st.spoken.isEmpty { await speaker.say(st.spoken) }
-            if st.readyS > 0 {
-                Beep.ready()
-                await wait(st.readyS)
-            }
-            if skipFlag { logCue(st, hostNs: hostNowNs(), sensorNs: sensorNowNs(), status: "skipped"); return }
+            if st.readyS > 0 { await wait(0.25) }
+            if skipFlag { logCue(st, hostNs: hostNowNs(), sensorNs: sensorNowNs(), status: "skipped", shownNs: shown); return }
             let h = hostNowNs(), t = sensorNowNs()
+            if stillCalib { recorder.live.beginQuietCapture() }
             Beep.go()
             await wait(st.windowS)
-            logCue(st, hostNs: h, sensorNs: t, status: skipFlag ? "skipped" : (switchDuringStep ? "disturbed" : "done"))
+            if stillCalib && !recorder.live.endQuietCapture() { note("live check: still pose too short, default quiet level") }
+            var verdict: LiveVerdict? = nil
+            if let expected = expectedMotions(st), !skipFlag {
+                try? await Task.sleep(nanoseconds: 500_000_000)       // let the detector close the last motion
+                let v = recorder.live.verdict(from: shown - 300_000_000, to: t + Int64(st.windowS * 1e9), expected: expected)
+                verdict = v
+                feedback = v.text
+                feedbackOK = v.ok
+            }
+            logCue(st, hostNs: h, sensorNs: t, status: skipFlag ? "skipped" : (switchDuringStep ? "disturbed" : "done"),
+                   shownNs: shown, live: verdict)
             if st.cueKind == "calibration" && st.motion == "look_left_right" { Beep.end() }
-            await wait(st.gapAfterS)
+            await wait(max(0, st.gapAfterS - (verdict == nil ? 0 : 0.5)))
         case .activity:
             await speaker.say(st.spoken)
             let h = hostNowNs(), t = sensorNowNs()

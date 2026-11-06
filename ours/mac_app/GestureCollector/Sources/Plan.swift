@@ -146,7 +146,7 @@ extension StudyPlan {
                 BlockDef(id: "G.sitting", kind: .rounds, title: "Extra sitting rounds", condition: "sitting", rounds: 1),
             ]),
         ]
-        return StudyPlan(version: "v2.0-placeholder-vocab", motions: motions, commands: commands, timing: Timing(),
+        return StudyPlan(version: "v2.1-placeholder-vocab", motions: motions, commands: commands, timing: Timing(),
                          practicePerMotionFirst: 2, practicePerMotionLater: 1, core: core, modules: modules)
     }()
 
@@ -155,9 +155,12 @@ extension StudyPlan {
         let url = dataRoot.appendingPathComponent("plan.json")
         if let data = try? Data(contentsOf: url) {
             if let plan = try? JSONDecoder().decode(StudyPlan.self, from: data) {
-                return (plan, "plan.json from the data folder (\(plan.version))")
+                // an unedited built-in plan from an older app version is replaced by the current built-in one
+                let oldDefault = plan.version.hasSuffix("-placeholder-vocab") && plan.version != defaultPlan.version
+                if !oldDefault { return (plan, "plan.json from the data folder (\(plan.version))") }
+            } else {
+                return (defaultPlan, "plan.json in the data folder is INVALID, using the built-in plan")
             }
-            return (defaultPlan, "plan.json in the data folder is INVALID, using the built-in plan")
         }
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]

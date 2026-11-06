@@ -22,7 +22,11 @@ final class AppModel: ObservableObject {
 
     let recorder = Recorder()
     let roster: RosterStore
-    static let devices = ["AirPods Pro 2", "AirPods Pro (newer model)"]
+    // All AirPods with head tracking (CMHeadphoneMotionManager). The first two are the study's crossover pair.
+    static let devices = ["AirPods Pro 2", "AirPods 5", "AirPods Pro 3", "AirPods Pro (1st gen)", "AirPods 4",
+                          "AirPods 4 (ANC)", "AirPods 3", "AirPods Max", "Other"]
+    static let crossover = Array(devices.prefix(2))
+    @Published var detected: [String: String] = [:]   // what macOS reports about the connected AirPods
     private var seed: UInt64 = 0
 
     init() {
@@ -65,8 +69,47 @@ final class AppModel: ObservableObject {
     func select(_ number: Int?) {
         participantNumber = number
         guard let p = participant else { return }
-        let done = AppModel.devices.filter { d in plan.core.allSatisfy { p.coreBlocksDone(device: d).contains($0.id) } }
-        device = Planner.suggestedDevice(number: p.number, done: done, devices: AppModel.devices)
+        let done = AppModel.crossover.filter { d in plan.core.allSatisfy { p.coreBlocksDone(device: d).contains($0.id) } }
+        device = Planner.suggestedDevice(number: p.number, done: done, devices: AppModel.crossover)
+    }
+
+    // ------------------------------------------------------------------ which AirPods are connected
+    /// Reads the connected headphones from `system_profiler SPBluetoothDataType -json` (name, product ID, firmware).
+    func detectAirPods() {
+        Task.detached {
+            let found = AppModel.readBluetooth()
+            await MainActor.run { self.detected = found }
+        }
+    }
+
+    nonisolated static func readBluetooth() -> [String: String] {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+        p.arguments = ["SPBluetoothDataType", "-json"]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = FileHandle.nullDevice
+        do { try p.run() } catch { return ["error": "system_profiler failed"] }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let items = root["SPBluetoothDataType"] as? [[String: Any]] else { return ["error": "no Bluetooth info"] }
+        for item in items {
+            for dev in (item["device_connected"] as? [[String: Any]]) ?? [] {
+                for (name, value) in dev {
+                    guard let props = value as? [String: Any] else { continue }
+                    let minor = props["device_minorType"] as? String ?? ""
+                    if name.localizedCaseInsensitiveContains("airpods") || minor == "Headphones" {
+                        return ["name": name,
+                                "productID": props["device_productID"] as? String ?? "",
+                                "vendorID": props["device_vendorID"] as? String ?? "",
+                                "firmware": props["device_firmwareVersion"] as? String ?? "",
+                                "minorType": minor]
+                    }
+                }
+            }
+        }
+        return ["error": "no connected headphones found"]
     }
 
     // ------------------------------------------------------------------ planning
@@ -104,7 +147,9 @@ final class AppModel: ObservableObject {
                                macModel: macModel(), profile: p.profile, plannedCore: pv.coreBlocks,
                                plannedModules: pv.modules, fillerRounds: pv.fillerRounds, started: Date(), ended: nil,
                                status: "running")
-        let state = SessionState(meta: meta, steps: pv.steps, index: 0, trial: 0, attempts: [:])
+        var m = meta
+        m.detectedAirPods = detected
+        let state = SessionState(meta: m, steps: pv.steps, index: 0, trial: 0, attempts: [:])
         roster.update(p.number) {
             $0.sessions.append(SessionRecord(code: code, folder: folderName, device: device, started: Date(),
                                              status: "running", modulesDone: [], coreBlocksDone: []))

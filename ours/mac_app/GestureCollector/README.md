@@ -1,4 +1,4 @@
-# Gesture Collector (macOS app, v2.0)
+# Gesture Collector (macOS app, v2.1)
 
 The data-collection app from `../APP_V2_PLAN.md`, **build step 1**. It replaces collector v3 + Sensor Logger:
 one Mac with AirPods runs the whole session. It explains the motions, gives spoken cues through the AirPods,
@@ -6,6 +6,20 @@ records continuously, and resumes after a crash.
 
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
+
+## New in v2.1 (after the first real session, P01)
+- **Cue flow:** the motion is shown and spoken, then the GO beep. The separate ready beep is gone, because people
+  moved on the name anyway (P01: 61 % before GO). The **announce time** is logged (`shown_sensor_ns`), and
+  gesturekit opens the motion window there.
+- **One-motion check after every trial:** a Swift port of gesturekit's detector counts the motions in the window
+  and shows feedback: "✓ one motion", "We saw 2 motions: do it ONCE", "No motion seen", "Too long". It is logged as
+  `live_events` and `live_verdict`. There are no automatic retakes yet. Checked against gesturekit on P01's data:
+  63 vs 63 events, 55 identical within 0.15 s.
+- **Two 3D heads** while running (SceneKit, built from basic shapes): **DO THIS** (demo) and **YOU** (live mirror).
+- **Full AirPods list** (Pro 2, **AirPods 5**, Pro 3, Pro 1, AirPods 4 / 4 ANC, AirPods 3, Max). The crossover
+  pair is AirPods Pro 2 + AirPods 5. The connected model's name, product ID and firmware are read from macOS and
+  saved in `session.json`. 25 Hz models are accepted.
+- Fixed: two idle cues in one round were logged as attempt 2.
 
 ## What v2.0 does
 - **Start screen**
@@ -44,7 +58,8 @@ P05_riya_s1_airpodspro2_20261120_141000/
   session.json   participant number + first name, device, plan version, seed, modules planned/done, status, OS, Mac model
   state.json     every planned step + how far it got (resume)
   stream_000.csv samples: sensor_ns, host_ns, 16 channels (m/s², rad/s, rad), sensor_location; one per segment
-  cues.csv       collector-v3 columns + module, attempt, status (done / skipped / disturbed / start / end)
+  cues.csv       collector-v3 columns + module, attempt, status (done / skipped / disturbed / start / end),
+                 shown_sensor_ns, live_events, live_verdict (v2.1)
   notes.csv      experimenter actions and notes
 ```
 Cue times are on the same clock as the samples (boot time + uptime), so no clock alignment is needed.

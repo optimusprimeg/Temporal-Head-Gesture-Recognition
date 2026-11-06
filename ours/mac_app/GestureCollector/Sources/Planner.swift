@@ -44,6 +44,7 @@ struct Step: Codable, Hashable {
     var note: String = ""
     var endsBlock: Bool = false
     var endsModule: Bool = false
+    var uid: Int? = nil         // planned trial id (a repeated trial keeps it; inserted calibrations have none)
 }
 
 struct SessionPlan: Codable {
@@ -273,6 +274,7 @@ enum Planner {
         steps.append(Step(module: "closing", block: "closing", kind: .cue, cueKind: "calibration", motion: "still",
                           condition: "sitting", windowS: 10, gapAfterS: 0, readyS: 0.8, spoken: "stay still",
                           text: "LAST: STAY STILL", sub: "10 seconds", endsBlock: true))
+        for i in steps.indices { steps[i].uid = i + 1 }
         return SessionPlan(steps: steps, coreBlocks: coreTodo.map(\.id), modules: chosen, fillerRounds: filler,
                            estimateS: estimate(steps, t), warnings: warnings)
     }

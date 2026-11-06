@@ -30,6 +30,7 @@ final class Recorder: NSObject, ObservableObject, CMHeadphoneMotionManagerDelega
     @Published var segmentSamples = 0
     @Published var segmentPath = ""
 
+    let live = LiveDetector()                    // fed with every sample (one-motion check)
     var onSwitch: ((String, String) -> Void)?   // (from, to), called on the main thread
     var onGap: ((Double) -> Void)?               // gap length in s, called on the main thread
 
@@ -99,6 +100,7 @@ final class Recorder: NSObject, ObservableObject, CMHeadphoneMotionManagerDelega
         let vals: [Double] = [a.yaw, a.pitch, a.roll, q.x, q.y, q.z, q.w, r.x, r.y, r.z,
                               u.x * G, u.y * G, u.z * G, g.x * G, g.y * G, g.z * G]
         let line = "\(sensorNs),\(hostNowNs())," + vals.map { String($0) }.joined(separator: ",") + ",\(loc)\n"
+        live.push(sensorNs: sensorNs, rot: (r.x, r.y, r.z), acc: (u.x * G, u.y * G, u.z * G))
         lock.lock()
         if let last = lastLocation, last != loc { pendingSwitch = (last, loc) }
         if let lt = lastTimestamp, m.timestamp - lt > 1.0 { pendingGap = m.timestamp - lt }
@@ -136,7 +138,8 @@ final class Recorder: NSObject, ObservableObject, CMHeadphoneMotionManagerDelega
                 status = connected ? "AirPods connected but no data: put BOTH AirPods in."
                                    : "No AirPods data: connect AirPods to THIS Mac and wear them."
             } else if total > 0 {
-                status = rateHz > 40 ? "Receiving data OK" : (rateHz > 0 ? "Data rate is LOW" : "Data STOPPED")
+                // some AirPods models stream at 25 Hz, most at 50 Hz
+                status = rateHz > 20 ? "Receiving data OK" : (rateHz > 0 ? "Data rate is LOW" : "Data STOPPED")
             }
         }
         if let m = m {
@@ -147,7 +150,7 @@ final class Recorder: NSObject, ObservableObject, CMHeadphoneMotionManagerDelega
         }
     }
 
-    var healthy: Bool { rateHz > 40 && abs(gravityNorm - 9.81) < 0.5 }
+    var healthy: Bool { rateHz > 20 && abs(gravityNorm - 9.81) < 0.5 }
 
     // ------------------------------------------------------------------ segment files
     func startSegment(at url: URL) throws {
