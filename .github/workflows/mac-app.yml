@@ -1,0 +1,35 @@
+name: Build macOS AirPods Check app
+
+on:
+  push:
+    branches: [mac-app]
+    paths: ["ours/mac_app/**", ".github/workflows/mac-app.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build universal app
+        run: UNIVERSAL=1 bash ours/mac_app/build.sh
+      - name: Check the app
+        run: |
+          lipo -info ours/mac_app/AirPodsCheck.app/Contents/MacOS/AirPodsCheck
+          plutil -lint ours/mac_app/AirPodsCheck.app/Contents/Info.plist
+          codesign --verify --verbose ours/mac_app/AirPodsCheck.app
+      - name: Zip
+        run: |
+          cd ours/mac_app
+          ditto -c -k --keepParent AirPodsCheck.app AirPodsCheck.zip
+      - name: Publish as release "mac-app"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete mac-app --yes --cleanup-tag || true
+          gh release create mac-app ours/mac_app/AirPodsCheck.zip --target "$GITHUB_SHA" \
+            --title "AirPods Check (macOS app)" \
+            --notes "Unzip, then right-click AirPodsCheck.app > Open (first time only). Needs macOS 14+ and AirPods Pro/3/4/Max. Built from $GITHUB_SHA."
