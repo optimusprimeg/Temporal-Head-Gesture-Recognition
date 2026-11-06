@@ -1,4 +1,4 @@
-name: Build macOS AirPods Check app
+name: Build macOS apps (AirPods Check, Gesture Collector)
 
 on:
   push:
@@ -33,3 +33,27 @@ jobs:
           gh release create mac-app ours/mac_app/AirPodsCheck.zip --target "$GITHUB_SHA" \
             --title "AirPods Check (macOS app)" \
             --notes "Unzip, then right-click AirPodsCheck.app > Open (first time only). Needs macOS 14+ and AirPods Pro/3/4/Max. Built from $GITHUB_SHA."
+
+  gesture-collector:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build universal Gesture Collector app
+        run: UNIVERSAL=1 bash ours/mac_app/GestureCollector/build.sh
+      - name: Check the app
+        run: |
+          lipo -info ours/mac_app/GestureCollector/GestureCollector.app/Contents/MacOS/GestureCollector
+          plutil -lint ours/mac_app/GestureCollector/GestureCollector.app/Contents/Info.plist
+          codesign --verify --verbose ours/mac_app/GestureCollector/GestureCollector.app
+      - name: Zip
+        run: |
+          cd ours/mac_app/GestureCollector
+          ditto -c -k --keepParent GestureCollector.app GestureCollector.zip
+      - name: Publish as release "gesture-collector"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete gesture-collector --yes --cleanup-tag || true
+          gh release create gesture-collector ours/mac_app/GestureCollector/GestureCollector.zip --target "$GITHUB_SHA" \
+            --title "Gesture Collector (macOS data-collection app)" \
+            --notes "Unzip, then right-click GestureCollector.app > Open (first time: System Settings > Privacy & Security > Open Anyway). Needs macOS 14+ and AirPods Pro/3/4/Max. Built from $GITHUB_SHA."

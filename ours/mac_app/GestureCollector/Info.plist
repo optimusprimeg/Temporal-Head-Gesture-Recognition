@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>GestureCollector</string>
+    <key>CFBundleIdentifier</key>
+    <string>in.ac.iitk.cs724.gesturecollector</string>
+    <key>CFBundleName</key>
+    <string>Gesture Collector</string>
+    <key>CFBundleDisplayName</key>
+    <string>Gesture Collector</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSMotionUsageDescription</key>
+    <string>Records AirPods head motion for the CS724 gesture study.</string>
+</dict>
+</plist>
