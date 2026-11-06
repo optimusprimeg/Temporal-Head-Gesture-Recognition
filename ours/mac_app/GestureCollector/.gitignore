@@ -1,0 +1,3 @@
+# built locally or downloaded from the release
+*.zip
+*.app/
