@@ -150,7 +150,7 @@ enum Planner {
             }
         case .commands:
             s.append(Step(module: module, block: b.id, kind: .message, text: b.title.uppercased(),
-                          sub: "Each command = first motion, then second motion, at your normal pace, after the beep."))
+                          sub: "Condition: \(b.condition). Each command = first motion, then second motion, at your normal pace, after the beep."))
             var cmds = plan.commands
             cmds.shuffle(using: &rng)
             for (i, c) in cmds.prefix(max(0, b.n)).enumerated() {

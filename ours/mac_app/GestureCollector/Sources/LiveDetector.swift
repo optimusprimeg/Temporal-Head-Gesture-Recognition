@@ -37,6 +37,7 @@ final class LiveDetector {
     private var energy = 0.0
     private var history: [Int64] = []        // sample times of the last nPre + nOnset samples (event pre-roll)
     private var events: [LiveEvent] = []
+    private var closedQueue: [LiveEvent] = []  // events closed since the last takeClosed() (live recogniser)
     private var capture: [(Double, Double)]?
     private(set) var calibrated = false
 
@@ -108,6 +109,8 @@ final class LiveDetector {
         if Double(endNs - startNs) / 1e9 >= Double(nMin) / 50.0 {
             events.append(LiveEvent(startNs: startNs, endNs: endNs, energy: energy))
             if events.count > 200 { events.removeFirst(events.count - 200) }
+            closedQueue.append(events[events.count - 1])
+            if closedQueue.count > 50 { closedQueue.removeFirst(closedQueue.count - 50) }
         }
         recording = false
         onset = 0
@@ -118,6 +121,15 @@ final class LiveDetector {
         gBuf.removeAll(); jBuf.removeAll(); history.removeAll()
         prev = nil
         onset = 0
+    }
+
+    /// Events that ended since the last call (the live recogniser takes each event once, right after it ends).
+    func takeClosed() -> [LiveEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        let out = closedQueue
+        closedQueue.removeAll()
+        return out
     }
 
     // ------------------------------------------------------------------ questions from the runner (main thread)

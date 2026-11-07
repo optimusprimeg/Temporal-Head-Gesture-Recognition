@@ -38,6 +38,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Live recogniser matches Python (parity test on real P01 events)
+        run: |
+          cd ours/mac_app/GestureCollector
+          swiftc -O Sources/LiveRecognizer.swift Tests/main.swift -o /tmp/parity
+          /tmp/parity Tests/parity.json
       - name: Build universal Gesture Collector app
         run: UNIVERSAL=1 bash ours/mac_app/GestureCollector/build.sh
       - name: Check the app
@@ -56,4 +61,4 @@ jobs:
           gh release delete gesture-collector --yes --cleanup-tag || true
           gh release create gesture-collector ours/mac_app/GestureCollector/GestureCollector.zip --target "$GITHUB_SHA" \
             --title "Gesture Collector (macOS data-collection app)" \
-            --notes "Unzip, then right-click GestureCollector.app > Open (first time: System Settings > Privacy & Security > Open Anyway). Needs macOS 14+ and AirPods Pro/3/4/Max. Built from $GITHUB_SHA."
+            --notes "Unzip, then right-click GestureCollector.app > Open (first time: System Settings > Privacy & Security > Open Anyway). Needs macOS 14+ and AirPods with head tracking (Pro, 3, 4, 5, Max). v2.2: live recognizer (Rules / Model) + pilot plan changes. Built from $GITHUB_SHA."

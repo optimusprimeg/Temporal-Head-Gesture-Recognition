@@ -1,4 +1,4 @@
-# Gesture Collector (macOS app, v2.1)
+# Gesture Collector (macOS app, v2.2)
 
 The data-collection app from `../APP_V2_PLAN.md`, **build step 1**. It replaces collector v3 + Sensor Logger:
 one Mac with AirPods runs the whole session. It explains the motions, gives spoken cues through the AirPods,
@@ -6,6 +6,33 @@ records continuously, and resumes after a crash.
 
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
+
+## New in v2.2: live recognizer + pilot plan changes
+**Live recognizer** (start screen → "Live recognizer: try commands"; not part of a session):
+1. **Calibrate:** 3 s still, then nod down 3 times, chin down first. This gives the quiet level and the head frame.
+2. **Do commands:** each finished motion goes through the head frame, the features and the decision. Two
+   accepted motions within 1.5 s make a command from the plan's dictionary, which is spoken and shown.
+3. **Rules / Model switch:**
+   - **Rules:** dominant rotation axis (≥ 0.6 of the energy) → nod, tilt or turn; else a loop → circle.
+   - **Model:** logistic regression from `live_model.json` (EarSet + P01), with a "not a gesture" class and a
+     50 % confidence gate.
+   - In both modes the direction comes from one sign (first swing, or the loop for circles).
+   - **Both answers are logged for every event**, whichever mode is chosen.
+4. **"Wrong" button** on each event: logged, for retraining.
+5. **Files:** `live/live_<stamp>.csv` (one row per event) and `live/live_<stamp>_stream.csv` (raw samples).
+6. **Model file:** a `live_model.json` in the data folder replaces the built-in one, so a retrained model needs no
+   rebuild. Make it with `algorithm/scripts/export_live_model.py`; its results are in
+   `algorithm/results/live_model.md`.
+
+The Swift code is checked against Python on 14 real P01 events in the GitHub build (`Tests/main.swift`).
+
+**Pilot plan (plan v2.2):**
+- **Module D is real walking** around the room with corners (not walking in place). It adds 10 commands while
+  walking slowly, and walking without gestures including turning around.
+- **Core no-gesture block:** three hard negatives (look behind with the whole body, look around, stand up and
+  sit down), about +2 min.
+
+Why: PROJECT_REVIEW.md section 8.
 
 ## New in v2.1 (after the first real session, P01)
 - **Cue flow:** the motion is shown and spoken, then the GO beep. The separate ready beep is gone, because people
@@ -85,4 +112,8 @@ Allow **Motion & Fitness** when asked.
 | `Sources/Recorder.swift` | AirPods motion → segment files; rate, earbud, switches, gaps |
 | `Sources/Session.swift` | runs the steps: speech, beeps, cue log, state saving, resume, recalibration, zip export |
 | `Sources/HeadView.swift` | cartoon head: motion demos and live mirror |
+| `Sources/LiveDetector.swift` | live motion detector (port of detect.py): one-motion check, and events for the live recognizer |
+| `Sources/LiveRecognizer.swift` | live recognizer logic, Foundation only: head frame, features, rules, model, pair decoder |
+| `Sources/LiveScreen.swift` | live mode: engine (motion queue), session (switch, commands, logs), screen |
+| `live_model.json`, `Tests/` | built-in model; Swift-vs-Python parity test |
 | `Sources/Views.swift`, `AppModel.swift`, `App.swift` | screens and app flow |

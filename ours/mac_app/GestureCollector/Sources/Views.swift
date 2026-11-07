@@ -14,6 +14,7 @@ struct RootView: View {
             case .review: ReviewView()
             case .run: if let r = model.runner { RunView(runner: r) } else { StartView() }
             case .done: DoneView()
+            case .live: if let l = model.live { LiveView(live: l) } else { StartView() }
             }
         }
         .padding(20)
@@ -46,6 +47,11 @@ struct StartView: View {
                     Button("Open") { NSWorkspace.shared.open(model.dataRoot) }
                 }
                 Text("Plan: \(model.planSource)").font(.caption).foregroundColor(.secondary)
+                HStack {
+                    Button("Live recognizer: try commands") { model.openLive() }
+                    Text("Recognises commands from the AirPods in real time (Rules or Model). Not part of a session.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
 
                 let res = model.resumable
                 if !res.isEmpty {

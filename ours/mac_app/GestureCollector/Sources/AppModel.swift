@@ -5,7 +5,7 @@ import Foundation
 
 @MainActor
 final class AppModel: ObservableObject {
-    enum Screen { case start, check, review, run, done }
+    enum Screen { case start, check, review, run, done, live }
 
     @Published var screen: Screen = .start
     @Published var dataRoot: URL
@@ -19,6 +19,7 @@ final class AppModel: ObservableObject {
     @Published var lastMeta: SessionMeta?
     @Published var message = ""
     @Published var reference = HeadAngles()
+    @Published var live: LiveSession?
 
     let recorder = Recorder()
     let roster: RosterStore
@@ -221,6 +222,18 @@ final class AppModel: ObservableObject {
         if let d = try? enc.encode(s) { try? d.write(to: folder.appendingPathComponent("state.json"), options: .atomic) }
         if let d = try? enc.encode(s.meta) { try? d.write(to: folder.appendingPathComponent("session.json"), options: .atomic) }
         sessionFinished(s.meta)
+        screen = .start
+    }
+
+    // ------------------------------------------------------------------ live recogniser
+    func openLive() {
+        live = LiveSession(recorder: recorder, dataRoot: dataRoot, plan: plan)
+        screen = .live
+    }
+
+    func closeLive() {
+        live?.stop()
+        live = nil
         screen = .start
     }
 

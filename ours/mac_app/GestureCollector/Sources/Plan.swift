@@ -106,6 +106,10 @@ extension StudyPlan {
             BlockDef(id: "core.negatives", kind: .negatives, title: "No gestures", activities: [
                 Activity(text: "TALK: read the text aloud or chat with the experimenter", seconds: 120),
                 Activity(text: "LISTEN and nod along naturally while the experimenter talks", seconds: 60),
+                // hard negatives (v2.2): everyday movements that look most like commands
+                Activity(text: "LOOK BEHIND: turn your whole body to look behind you, a few times, then face front", seconds: 40),
+                Activity(text: "LOOK AROUND the room as if searching for something", seconds: 40),
+                Activity(text: "STAND UP and SIT DOWN a few times", seconds: 40),
             ]),
         ]
         let modules: [ModuleDef] = [
@@ -122,10 +126,15 @@ extension StudyPlan {
                 BlockDef(id: "C.standing", kind: .rounds, title: "Standing", condition: "standing", rounds: 2),
                 BlockDef(id: "C.offset", kind: .rounds, title: "Head already turned", condition: "keep your head a little tilted or turned, do the motion from there", rounds: 2),
             ]),
-            ModuleDef(id: "D", title: "Walking", tests: "H1, H6", rotate: true, blocks: [
-                BlockDef(id: "D.walking", kind: .rounds, title: "Walking", condition: "walking in place", rounds: 2),
+            // v2.2: real walking around the room (with corners), not walking in place: body turns at corners are the
+            // main open question for moving use (PROJECT_REVIEW.md section 8). Cues come through the AirPods, so the
+            // participant does not need to see the screen; stay within ~10 m of the Mac (Bluetooth).
+            ModuleDef(id: "D", title: "Walking", tests: "H1, H6, body vs head turn", rotate: true, blocks: [
+                BlockDef(id: "D.walking", kind: .rounds, title: "Walking", condition: "walking slowly around the room, turning at the corners", rounds: 2),
+                BlockDef(id: "D.commands", kind: .commands, title: "Commands while walking", condition: "walking slowly around the room", n: 10),
                 BlockDef(id: "D.negatives", kind: .negatives, title: "Walking, no gestures", activities: [
-                    Activity(text: "WALK in place or around, no gestures", seconds: 120),
+                    Activity(text: "WALK around the room at a normal pace, turning at the corners, no gestures", seconds: 90),
+                    Activity(text: "WALK and TURN AROUND: walk, stop, turn your whole body, walk back. No gestures", seconds: 60),
                 ]),
             ]),
             ModuleDef(id: "E", title: "More commands", tests: "H2, H3", rotate: true, blocks: [
@@ -146,7 +155,7 @@ extension StudyPlan {
                 BlockDef(id: "G.sitting", kind: .rounds, title: "Extra sitting rounds", condition: "sitting", rounds: 1),
             ]),
         ]
-        return StudyPlan(version: "v2.1-placeholder-vocab", motions: motions, commands: commands, timing: Timing(),
+        return StudyPlan(version: "v2.2-placeholder-vocab", motions: motions, commands: commands, timing: Timing(),
                          practicePerMotionFirst: 2, practicePerMotionLater: 1, core: core, modules: modules)
     }()
 

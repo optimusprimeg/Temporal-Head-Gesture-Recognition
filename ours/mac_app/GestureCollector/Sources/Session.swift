@@ -12,7 +12,7 @@ import AppKit
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "2.1.0"
+let APP_VERSION = "2.2.0"
 let PROTOCOL_VERSION = "v2.1-2026-11"
 // v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
 // labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
