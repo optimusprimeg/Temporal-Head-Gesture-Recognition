@@ -8,12 +8,11 @@
 //   cues.csv       every cue: same columns as collector v3 + module, attempt, status
 //   notes.csv      experimenter actions and notes
 
-import AppKit
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "2.2.0"
-let PROTOCOL_VERSION = "v2.1-2026-11"
+let APP_VERSION = "3.0.0"
+let PROTOCOL_VERSION = "v3-2026-11"   // v3: experiment files (Plan.swift)
 // v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
 // labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
 let CUE_HEADER = "host_ns,sensor_ns_est,block,kind,round,trial,step,motion,condition,window_s,note,module,attempt,status,shown_sensor_ns,live_events,live_verdict\n"
@@ -47,6 +46,10 @@ struct SessionMeta: Codable {
     var detectedAirPods: [String: String]? = nil   // name, product ID, firmware read from macOS Bluetooth
     var liveChecked: Int? = nil
     var liveOK: Int? = nil
+    // v3: which experiment file ran (a copy is saved as experiment.json in the session folder), and on what
+    var experimentFile: String? = nil
+    var experimentName: String? = nil
+    var platform: String? = nil                    // "macOS" or "iOS"
 }
 
 struct SessionState: Codable {
@@ -103,19 +106,9 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
 }
 
 enum Beep {
-    static func play(_ name: String) { NSSound(named: NSSound.Name(name))?.play() }
-    static func ready() { play("Tink") }
-    static func go() { play("Pop") }
-    static func end() { play("Bottle") }
-}
-
-func macModel() -> String {
-    var size = 0
-    sysctlbyname("hw.model", nil, &size, nil, 0)
-    guard size > 0 else { return "unknown" }
-    var buf = [CChar](repeating: 0, count: size)
-    sysctlbyname("hw.model", &buf, &size, nil, 0)
-    return String(cString: buf)
+    static func ready() { Platform.sound("Tink") }
+    static func go() { Platform.sound("Pop") }
+    static func end() { Platform.sound("Bottle") }
 }
 
 @MainActor
@@ -246,6 +239,8 @@ final class SessionRunner: ObservableObject {
         recorder.onSwitch = { [weak self] from, to in Task { @MainActor in self?.earbudSwitched(from: from, to: to) } }
         recorder.onGap = { [weak self] g in Task { @MainActor in self?.gap(g) } }
         phase = .running
+        Platform.configureAudio()
+        Platform.keepAwake(true)
         task = Task { await self.loop() }
     }
 
@@ -395,7 +390,8 @@ final class SessionRunner: ObservableObject {
             try? await Task.sleep(nanoseconds: 300_000_000)
             Beep.end()
         case .manualStart:
-            await speaker.say(st.cueKind == "rewear" ? "take both AirPods out and put them back in" : "send the commands in order")
+            await speaker.say(st.cueKind == "rewear" ? "take both AirPods out and put them back in"
+                              : (st.spoken.isEmpty ? "send the commands in order" : st.spoken))
             logCue(st, hostNs: hostNowNs(), sensorNs: sensorNowNs(), status: "start")
             await waitForButton(.waitingDone)
         case .manualEnd:
@@ -414,20 +410,13 @@ final class SessionRunner: ObservableObject {
         try? noteFile?.close()
         recorder.onSwitch = nil
         recorder.onGap = nil
+        Platform.keepAwake(false)
         phase = .finished
         title = s.meta.status == "complete" ? "DONE. Thank you!" : "Session ended early (saved)"
         sub = ""
         onFinished?(s.meta)
     }
 
-    /// Zip of the session folder next to it (for AirDrop / WhatsApp / pen drive).
-    func exportZip() -> URL? {
-        let zip = folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + ".zip")
-        try? FileManager.default.removeItem(at: zip)
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        p.arguments = ["-c", "-k", "--keepParent", folder.path, zip.path]
-        do { try p.run(); p.waitUntilExit() } catch { return nil }
-        return p.terminationStatus == 0 ? zip : nil
-    }
+    /// Zip of the session folder next to it (for AirDrop / WhatsApp / Drive / pen drive).
+    func exportZip() -> URL? { Platform.zip(folder: folder) }
 }

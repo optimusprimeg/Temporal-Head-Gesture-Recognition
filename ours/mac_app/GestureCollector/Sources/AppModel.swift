@@ -1,7 +1,10 @@
-// App state: data folder, plan, roster, the current participant/session, and the screens' flow.
+// App state: data folder, experiment files, roster, the current participant/session, and the screens' flow.
+// Shared by the Mac and iPhone apps (platform differences: Platform.swift).
 
-import AppKit
 import Foundation
+#if os(macOS)
+import AppKit
+#endif
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -11,6 +14,8 @@ final class AppModel: ObservableObject {
     @Published var dataRoot: URL
     @Published var plan: StudyPlan
     @Published var planSource: String
+    @Published var experiments: [ExperimentFile] = []
+    @Published var experimentFile = ""
     @Published var participantNumber: Int?
     @Published var device = ""
     @Published var budgetMin = 45.0
@@ -31,19 +36,46 @@ final class AppModel: ObservableObject {
     private var seed: UInt64 = 0
 
     init() {
+        #if os(macOS)
         let saved = UserDefaults.standard.string(forKey: "dataRoot")
-        let root = saved.map { URL(fileURLWithPath: $0) }
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/GestureCollector")
+        let root = saved.map { URL(fileURLWithPath: $0) } ?? Platform.defaultDataRoot
+        #else
+        let root = Platform.defaultDataRoot          // the app's Documents folder (Files app: On My iPhone)
+        #endif
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         dataRoot = root
         roster = RosterStore(dataRoot: root)
-        let loaded = StudyPlan.load(dataRoot: root)
-        plan = loaded.0
-        planSource = loaded.1
+        plan = StudyPlan.pilot
+        planSource = ""
+        reloadExperiments()
+    }
+
+    /// Rescans <data folder>/experiments and keeps the current choice if it is still valid (else the pilot).
+    func reloadExperiments() {
+        experiments = Experiments.load(dataRoot: dataRoot)
+        let keep = UserDefaults.standard.string(forKey: "experimentFile") ?? experimentFile
+        let pick = experiments.first { $0.file == keep && $0.plan != nil }
+            ?? experiments.first { $0.file == "pilot.json" && $0.plan != nil }
+            ?? experiments.first { $0.plan != nil }
+        if let e = pick, let p = e.plan { chooseExperiment(e.file, p) }
+        else { planSource = "No valid experiment file: using the built-in pilot" }
+    }
+
+    func chooseExperiment(_ file: String) {
+        if let e = experiments.first(where: { $0.file == file }), let p = e.plan { chooseExperiment(file, p) }
+    }
+
+    private func chooseExperiment(_ file: String, _ p: StudyPlan) {
+        experimentFile = file
+        plan = p
+        planSource = "\(p.name), \(file) (version \(p.version))"
+        UserDefaults.standard.set(file, forKey: "experimentFile")
+        if let n = participantNumber { select(n) }
     }
 
     var participant: Participant? { participantNumber.flatMap { roster.participant($0) } }
 
+    #if os(macOS)
     func chooseDataRoot() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -54,16 +86,19 @@ final class AppModel: ObservableObject {
         dataRoot = url
         UserDefaults.standard.set(url.path, forKey: "dataRoot")
         roster.moveTo(dataRoot: url)
-        let loaded = StudyPlan.load(dataRoot: url)
-        plan = loaded.0
-        planSource = loaded.1
         participantNumber = nil
+        reloadExperiments()
     }
+    #endif
 
-    func addParticipant(firstName: String, profile: [String: String]) {
+    func addParticipant(firstName: String, profile: [String: String], number: Int?) {
         let name = firstName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { message = "Type a first name."; return }
-        let p = roster.add(firstName: name, profile: profile)
+        guard let p = roster.add(firstName: name, profile: profile, number: number) else {
+            message = "Participant number \(number ?? 0) is already used on this device."
+            return
+        }
+        message = ""
         select(p.number)
     }
 
@@ -75,42 +110,16 @@ final class AppModel: ObservableObject {
     }
 
     // ------------------------------------------------------------------ which AirPods are connected
-    /// Reads the connected headphones from `system_profiler SPBluetoothDataType -json` (name, product ID, firmware).
+    /// What the system reports about the connected AirPods (Platform.headphones), saved with the session.
     func detectAirPods() {
+        #if os(macOS)
         Task.detached {
-            let found = AppModel.readBluetooth()
+            let found = Platform.headphones()
             await MainActor.run { self.detected = found }
         }
-    }
-
-    nonisolated static func readBluetooth() -> [String: String] {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-        p.arguments = ["SPBluetoothDataType", "-json"]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { return ["error": "system_profiler failed"] }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let items = root["SPBluetoothDataType"] as? [[String: Any]] else { return ["error": "no Bluetooth info"] }
-        for item in items {
-            for dev in (item["device_connected"] as? [[String: Any]]) ?? [] {
-                for (name, value) in dev {
-                    guard let props = value as? [String: Any] else { continue }
-                    let minor = props["device_minorType"] as? String ?? ""
-                    if name.localizedCaseInsensitiveContains("airpods") || minor == "Headphones" {
-                        return ["name": name,
-                                "productID": props["device_productID"] as? String ?? "",
-                                "vendorID": props["device_vendorID"] as? String ?? "",
-                                "firmware": props["device_firmwareVersion"] as? String ?? "",
-                                "minorType": minor]
-                    }
-                }
-            }
-        }
-        return ["error": "no connected headphones found"]
+        #else
+        detected = Platform.headphones()
+        #endif
     }
 
     // ------------------------------------------------------------------ planning
@@ -140,16 +149,19 @@ final class AppModel: ObservableObject {
             message = "Could not create the session folder: \(error.localizedDescription)"
             return
         }
-        let os = ProcessInfo.processInfo.operatingSystemVersion
         let meta = SessionMeta(participant: p.code, firstName: p.firstName, session: code, sessionIndex: index, device: device,
                                budgetMin: budgetMin, seed: seed, planVersion: plan.version, appVersion: APP_VERSION,
-                               protocolVersion: PROTOCOL_VERSION,
-                               os: "macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
-                               macModel: macModel(), profile: p.profile, plannedCore: pv.coreBlocks,
+                               protocolVersion: PROTOCOL_VERSION, os: Platform.osVersion,
+                               macModel: Platform.deviceModel, profile: p.profile, plannedCore: pv.coreBlocks,
                                plannedModules: pv.modules, fillerRounds: pv.fillerRounds, started: Date(), ended: nil,
                                status: "running")
         var m = meta
         m.detectedAirPods = detected
+        m.experimentFile = experimentFile
+        m.experimentName = plan.name
+        m.platform = Platform.name
+        // exactly what was run, next to the data
+        if let d = Experiments.encode(plan) { try? d.write(to: folder.appendingPathComponent("experiment.json")) }
         let state = SessionState(meta: m, steps: pv.steps, index: 0, trial: 0, attempts: [:])
         roster.update(p.number) {
             $0.sessions.append(SessionRecord(code: code, folder: folderName, device: device, started: Date(),
@@ -176,8 +188,11 @@ final class AppModel: ObservableObject {
                 var done = p.coreDone[meta.device] ?? []
                 if !done.contains(id) { done.append(id) }
                 p.coreDone[meta.device] = done
-            } else if !p.modulesDone.contains(id) {
-                p.modulesDone.append(id)
+            } else {
+                if !p.modulesDone.contains(id) { p.modulesDone.append(id) }
+                var byDev = p.modulesByDevice[meta.device] ?? []
+                if !byDev.contains(id) { byDev.append(id) }
+                p.modulesByDevice[meta.device] = byDev
             }
             if let i = p.sessions.firstIndex(where: { $0.code == meta.session }) {
                 p.sessions[i].modulesDone = meta.modulesDone

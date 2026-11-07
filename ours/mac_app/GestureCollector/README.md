@@ -1,4 +1,4 @@
-# Gesture Collector (macOS app, v2.2)
+# Gesture Collector (Mac + iPhone app, v3)
 
 The data-collection app from `../APP_V2_PLAN.md`, **build step 1**. It replaces collector v3 + Sensor Logger:
 one Mac with AirPods runs the whole session. It explains the motions, gives spoken cues through the AirPods,
@@ -6,6 +6,25 @@ records continuously, and resumes after a crash.
 
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
+
+## New in v3: experiment files, iPhone app, fixes from the independent check
+- **Experiment files:** each protocol is a JSON file in `<data folder>/experiments/` (built in: `pilot.json` =
+  Pilot v3, `selftest.json`), chosen per session on the start screen. Order rules live in the file:
+  `counterbalance`, `requireOneOf`, `modulesPerDevice`, `fillModule`. New block kinds `free` and `message`.
+  Broken files are listed with what is wrong. Each session saves `experiment.json`. Format: top of
+  `Sources/Plan.swift`.
+- **iPhone app:** the same sources build for iOS 16+ (`build_ios.sh`, unsigned `.ipa`; install with Sideloadly or
+  Xcode). Platform differences are in `Sources/Platform.swift`.
+- **Pilot v3:**
+  - sitting and small blocks counterbalanced by participant number;
+  - no-gesture time raised to 8 min and split early/late;
+  - re-wear or posture required for everyone;
+  - modules tracked per AirPods model;
+  - pause instruction for commands.
+- **Participant number** typed from the team sheet, because each device keeps its own roster.
+- **Loop feature fixed:** enclosed area / circle at the peak radius, independent of length and sample rate. The live
+  model was retrained (`live-v2`).
+- How to run a pilot: `../PILOT_GUIDE.md`.
 
 ## New in v2.2: live recognizer + pilot plan changes
 **Live recognizer** (start screen → "Live recognizer: try commands"; not part of a session):
@@ -106,7 +125,8 @@ Allow **Motion & Fitness** when asked.
 ## Code
 | File | What |
 |---|---|
-| `Sources/Plan.swift` | motions, commands, timing, core and modules (A-G); `plan.json` load/save |
+| `Sources/Plan.swift` | experiment file format, validation, built-in experiments (pilot, selftest) |
+| `Sources/Platform.swift` | Mac / iPhone differences (sounds, zip, files, headphones, screen on) |
 | `Sources/Planner.swift` | time budget → step list; Latin square module order; device crossover; time estimates |
 | `Sources/Roster.swift` | participants, sessions, what is done per device |
 | `Sources/Recorder.swift` | AirPods motion → segment files; rate, earbud, switches, gaps |

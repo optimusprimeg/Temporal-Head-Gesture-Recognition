@@ -1,7 +1,8 @@
-// Turns the study plan + participant + device + time budget into a flat list of steps (APP_V2_PLAN.md 3b).
-// Rules: the core (not yet done on this device) comes first and is never cut; optional modules follow in the
-// participant's own rotated order (Williams Latin square over the rotating modules, by participant number) and
-// are added only whole and only if they fit; G fills leftover time. All random choices come from a seed stored in
+// Turns an experiment file + participant + device + time budget into a flat list of steps (APP_V2_PLAN.md 3b).
+// Rules: the core (not yet done on this device) comes first and is never cut, its counterbalanced groups in the
+// participant's own order; optional modules follow in the participant's rotated order (Williams Latin square over
+// the rotating modules, by participant number; a required group's module first if none of it is done yet) and are
+// added only whole and only if they fit; the fill module fills leftover time. All random choices come from a seed stored in
 // the session, so a session can be resumed with exactly the same steps.
 
 import Foundation
@@ -22,7 +23,7 @@ enum StepKind: String, Codable {
     case message        // instruction screen, experimenter presses Continue
     case cue            // spoken + beeps + window (calibration, practice, rounds, pairs, commands)
     case activity       // negatives: do an activity for N seconds
-    case manualStart    // self-paced list / re-wear: logged start, experimenter presses Done
+    case manualStart    // self-paced list / re-wear / free block: logged start, experimenter presses Done
     case manualEnd      // logged end
 }
 
@@ -57,16 +58,35 @@ struct SessionPlan: Codable {
 }
 
 enum Planner {
-    static let rotating = ["A", "B", "C", "D", "E", "F"]
-
-    /// Williams design for 6 treatments: row r = r, r+1, r-1, r+2, r-2, r+3 (mod 6). Balanced first-order carryover.
-    static func moduleOrder(number: Int, available: [String]) -> [String] {
+    /// Williams design: row r = r, r+1, r-1, r+2, r-2, ... (mod n). Balanced first-order carryover for even n.
+    /// A module with a re-wear block is never last (it recalibrates; better followed by something).
+    static func moduleOrder(number: Int, rotating: [String], available: [String], neverLast: Set<String> = []) -> [String] {
         let n = rotating.count
+        guard n > 0 else { return [] }
         let r = ((number - 1) % n + n) % n
-        let offsets = [0, 1, -1, 2, -2, 3]
+        var offsets = [0]
+        var k = 1
+        while offsets.count < n {
+            offsets.append(k)
+            if offsets.count < n { offsets.append(-k) }
+            k += 1
+        }
         var order = offsets.map { rotating[((r + $0) % n + n) % n] }
-        if order.last == "A" { order.swapAt(order.count - 1, order.count - 2) }  // re-wear never last
+        if order.count > 1, let last = order.last, neverLast.contains(last) { order.swapAt(order.count - 1, order.count - 2) }
         return order.filter { available.contains($0) }
+    }
+
+    /// Core blocks in this participant's order: each counterbalance group's blocks swap places by rotation.
+    static func coreOrder(_ core: [BlockDef], groups: [[String]], number: Int) -> [BlockDef] {
+        var out = core
+        for g in groups {
+            let positions = out.indices.filter { g.contains(out[$0].id) }
+            guard positions.count > 1 else { continue }
+            let blocks = positions.map { out[$0] }
+            let r = ((number - 1) % blocks.count + blocks.count) % blocks.count
+            for (i, p) in positions.enumerated() { out[p] = blocks[(i + r) % blocks.count] }
+        }
+        return out
     }
 
     /// Device order (crossover): odd numbers start with the first device of the list, even with the second.
@@ -80,7 +100,7 @@ enum Planner {
         case .message: return 15
         case .cue: return (s.spoken.isEmpty ? 0 : t.speechS) + s.readyS + s.windowS + s.gapAfterS
         case .activity: return s.windowS + 4
-        case .manualStart: return s.cueKind == "rewear" ? 45 : 70
+        case .manualStart: return s.windowS > 0 ? s.windowS : (s.cueKind == "rewear" ? 45 : 70)
         case .manualEnd: return 0
         }
     }
@@ -131,7 +151,7 @@ enum Planner {
         switch b.kind {
         case .rounds:
             s.append(Step(module: module, block: b.id, kind: .message, text: b.title.uppercased(),
-                          sub: "\(b.rounds) round(s). Condition: \(b.condition). Do the motion right after the high beep, in one smooth go, straight back to the front (don't hold), then keep still."))
+                          sub: b.text ?? "\(b.rounds) round(s). Condition: \(b.condition). Do the motion right after the high beep, in one smooth go, straight back to the front (don't hold), then keep still."))
             for r in 1...max(1, b.rounds) {
                 var seq = motionIDs + Array(repeating: "idle", count: t.idlePerRound)
                 seq.shuffle(using: &rng)
@@ -150,7 +170,7 @@ enum Planner {
             }
         case .commands:
             s.append(Step(module: module, block: b.id, kind: .message, text: b.title.uppercased(),
-                          sub: "Condition: \(b.condition). Each command = first motion, then second motion, at your normal pace, after the beep."))
+                          sub: "Condition: \(b.condition). " + (b.text ?? "Each command = first motion, then second motion, at your normal pace, after the beep.")))
             var cmds = plan.commands
             cmds.shuffle(using: &rng)
             for (i, c) in cmds.prefix(max(0, b.n)).enumerated() {
@@ -201,6 +221,14 @@ enum Planner {
                               condition: a.text, windowS: a.seconds, spoken: a.text.components(separatedBy: ":").first ?? a.text,
                               text: a.text, sub: "\(Int(a.seconds)) s"))
             }
+        case .free:
+            s.append(Step(module: module, block: b.id, kind: .manualStart, cueKind: "free", step: 0, motion: "free",
+                          condition: b.condition, windowS: b.estimateS ?? 0, spoken: b.title.lowercased(),
+                          text: b.title.uppercased(), sub: b.text ?? "", note: "start"))
+            s.append(Step(module: module, block: b.id, kind: .manualEnd, cueKind: "free", step: 1, motion: "free",
+                          condition: b.condition, note: "end"))
+        case .message:
+            s.append(Step(module: module, block: b.id, kind: .message, text: b.title.uppercased(), sub: b.text ?? ""))
         case .rewear:
             s.append(Step(module: module, block: b.id, kind: .manualStart, cueKind: "rewear", step: 0, motion: "rewear",
                           text: "RE-WEAR", sub: "Take BOTH AirPods out, put them back in as usual. Then press Done.", note: "start"))
@@ -231,7 +259,8 @@ enum Planner {
         steps += practice(plan: study, perMotion: firstSession ? study.practicePerMotionFirst : study.practicePerMotionLater)
 
         let doneCore = participant.coreBlocksDone(device: device)
-        let coreTodo = study.core.filter { !doneCore.contains($0.id) }
+        let coreTodo = coreOrder(study.core, groups: study.counterbalance, number: participant.number)
+            .filter { !doneCore.contains($0.id) }
         var core: [Step] = []
         for b in coreTodo { core += block(b, module: "core", plan: study, rng: &rng) }
         if !core.isEmpty { core[core.count - 1].endsModule = true }
@@ -240,9 +269,19 @@ enum Planner {
             warnings.append(String(format: "The core needs about %.0f min, more than the time given. Data will be marked incomplete if it does not finish.", estimate(steps, t) / 60))
         }
 
-        let available = study.modules.filter { $0.rotate && !participant.modulesDone.contains($0.id) }.map(\.id)
+        let done = participant.modulesDone(device: device, perDevice: study.modulesPerDevice)
+        let rotating = study.modules.filter(\.rotate).map(\.id)
+        let available = rotating.filter { !done.contains($0) }
+        let neverLast = Set(study.modules.filter { m in m.blocks.contains { $0.kind == .rewear } }.map(\.id))
+        var order = moduleOrder(number: participant.number, rotating: rotating, available: available, neverLast: neverLast)
+        for g in study.requireOneOf.reversed() where !g.contains(where: { done.contains($0) }) {
+            if let first = order.first(where: { g.contains($0) }) {   // required group not done yet: its module first
+                order.removeAll { $0 == first }
+                order.insert(first, at: 0)
+            }
+        }
         var chosen: [String] = []
-        for id in moduleOrder(number: participant.number, available: available) {
+        for id in order {
             guard let m = study.modules.first(where: { $0.id == id }) else { continue }
             var probe = rng
             let ms = module(m, plan: study, rng: &probe)
@@ -254,19 +293,20 @@ enum Planner {
         }
 
         var filler = 0
-        if fillWithExtraRounds, let g = study.modules.first(where: { $0.id == "G" }), let gb = g.blocks.first {
+        if fillWithExtraRounds, let fid = study.fillModule, let g = study.modules.first(where: { $0.id == fid }),
+           let gb = g.blocks.first, gb.kind == .rounds {
             while true {
                 var b = gb
                 b.rounds = filler + 1
                 var probe = rng
-                let gs = block(b, module: "G", plan: study, rng: &probe)
+                let gs = block(b, module: fid, plan: study, rng: &probe)
                 if estimate(steps + gs, t) > budget || filler >= 8 { break }
                 filler += 1
             }
             if filler > 0 {
                 var b = gb
                 b.rounds = filler
-                var gs = block(b, module: "G", plan: study, rng: &rng)
+                var gs = block(b, module: fid, plan: study, rng: &rng)
                 gs[gs.count - 1].endsModule = true
                 steps += gs
             }

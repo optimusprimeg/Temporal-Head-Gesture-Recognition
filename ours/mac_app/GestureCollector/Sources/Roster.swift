@@ -19,12 +19,32 @@ struct Participant: Codable, Hashable, Identifiable {
     var profile: [String: String]
     var coreDone: [String: [String]] = [:]   // device -> core block ids done on that device
     var modulesDone: [String] = []            // module ids done (any device)
+    var modulesByDevice: [String: [String]] = [:]   // v3: device -> module ids done on that device
     var sessions: [SessionRecord] = []
 
     var id: Int { number }
     var code: String { String(format: "P%02d", number) }
 
+    init(number: Int, firstName: String, profile: [String: String]) {
+        self.number = number
+        self.firstName = firstName
+        self.profile = profile
+    }
+
+    // older roster.json files have no modulesByDevice: fill in defaults instead of failing (and losing the roster)
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        number = try c.decode(Int.self, forKey: .number)
+        firstName = try c.decode(String.self, forKey: .firstName)
+        profile = try c.decodeIfPresent([String: String].self, forKey: .profile) ?? [:]
+        coreDone = try c.decodeIfPresent([String: [String]].self, forKey: .coreDone) ?? [:]
+        modulesDone = try c.decodeIfPresent([String].self, forKey: .modulesDone) ?? []
+        modulesByDevice = try c.decodeIfPresent([String: [String]].self, forKey: .modulesByDevice) ?? [:]
+        sessions = try c.decodeIfPresent([SessionRecord].self, forKey: .sessions) ?? []
+    }
+
     func coreBlocksDone(device: String) -> [String] { coreDone[device] ?? [] }
+    func modulesDone(device: String, perDevice: Bool) -> [String] { perDevice ? (modulesByDevice[device] ?? []) : modulesDone }
 
     var summary: String {
         var parts: [String] = []
@@ -74,8 +94,12 @@ final class RosterStore: ObservableObject {
 
     var nextNumber: Int { (roster.participants.map(\.number).max() ?? 0) + 1 }
 
-    func add(firstName: String, profile: [String: String]) -> Participant {
-        let p = Participant(number: nextNumber, firstName: firstName, profile: profile)
+    /// number: the participant number the team assigned. Each phone/Mac keeps its own roster, so numbers must be
+    /// agreed across devices (P01 Ghanshyam, P02 ...). nil = next free number on this device.
+    func add(firstName: String, profile: [String: String], number: Int? = nil) -> Participant? {
+        let n = number ?? nextNumber
+        guard n > 0, participant(n) == nil else { return nil }
+        let p = Participant(number: n, firstName: firstName, profile: profile)
         roster.participants.append(p)
         save()
         return p

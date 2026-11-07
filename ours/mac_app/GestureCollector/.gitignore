@@ -1,3 +1,5 @@
 # built locally or downloaded from the release
 *.zip
 *.app/
+*.ipa
+build_ios/

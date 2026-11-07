@@ -10,7 +10,6 @@
 // The model is live_model.json from the data folder if there is one (retrained: export_live_model.py), else the
 // one built into the app.
 
-import AppKit
 import AVFoundation
 import Foundation
 import SwiftUI
@@ -184,6 +183,8 @@ final class LiveSession: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
+        Platform.configureAudio()
+        Platform.keepAwake(true)
         let eng = recorder.engine
         eng.setModel(model)
         eng.onResult = { [weak self] r in Task { @MainActor in self?.handle(r) } }
@@ -208,6 +209,7 @@ final class LiveSession: ObservableObject {
         guard started else { return }
         started = false
         recorder.engine.stop()
+        Platform.keepAwake(false)
         timer?.invalidate()
         timer = nil
         if ownsSegment { recorder.stopSegment(); ownsSegment = false }
@@ -257,12 +259,12 @@ final class LiveSession: ObservableObject {
         if rows.count > 15 { rows.removeLast(rows.count - 15) }
         var cmd: LiveCommand?
         if chosen.accepted {
-            if sounds { NSSound(named: "Tink")?.play() }
+            if sounds { Platform.sound("Tink") }
             cmd = decoder.push(chosen.motion, tStart: Double(r.startNs) / 1e9, tEnd: Double(r.endNs) / 1e9)
             if let c = cmd {
                 lastCommand = c
                 lastCommandTime = Date()
-                if sounds { NSSound(named: "Glass")?.play() }
+                if sounds { Platform.sound("Glass") }
                 if speak { say(c.message) }
             }
         }
@@ -338,20 +340,21 @@ struct LiveView: View {
     }
 
     var body: some View {
+        PhoneScroll {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Live recognizer").font(.largeTitle).bold()
                 Spacer()
                 Button("Back") { model.closeLive() }
             }
-            HStack(spacing: 16) {
+            AdaptiveStack(spacing: 16) {
                 Text(String(format: "%.0f Hz", rec.rateHz))
                 Text("Earbud: \(rec.location)")
                 Text(rec.status).foregroundColor(rec.healthy ? .green : .orange)
                 Spacer()
                 Text(live.modelSource).font(.caption).foregroundColor(.secondary)
             }
-            HStack(spacing: 20) {
+            AdaptiveStack(spacing: 20) {
                 Picker("Mode", selection: $live.mode) {
                     ForEach(RecognizerMode.allCases, id: \.self) { Text($0.rawValue) }
                 }
@@ -369,7 +372,7 @@ struct LiveView: View {
                         .disabled(live.calibrating)
                 }
             }
-            HStack(alignment: .top, spacing: 24) {
+            AdaptiveStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Last command").font(.headline)
                     Text(live.lastCommand?.message ?? "-").font(.system(size: 44, weight: .bold))
@@ -396,22 +399,23 @@ struct LiveView: View {
             }
             Text("Recent motions (newest first)").font(.headline)
             List(live.rows) { row in
-                HStack(spacing: 14) {
+                AdaptiveStack(spacing: 14) {
                     Text(row.time, style: .time).font(.caption.monospacedDigit())
                     Text(row.chosen.accepted ? row.chosen.motion : "(\(row.chosen.motion == "none" ? "not a gesture" : row.chosen.motion))")
                         .bold(row.chosen.accepted)
                         .foregroundColor(row.chosen.accepted ? .primary : .secondary)
-                        .frame(width: 170, alignment: .leading)
-                    Text("rules: \(row.result.rules.motion)").font(.caption).frame(width: 130, alignment: .leading)
+                        .frame(minWidth: Platform.isPhone ? 0 : 170, alignment: .leading)
+                    Text("rules: \(row.result.rules.motion)").font(.caption).frame(minWidth: Platform.isPhone ? 0 : 130, alignment: .leading)
                     Text(String(format: "model: %@ %.2f", row.result.model.motion, row.result.model.confidence))
-                        .font(.caption).frame(width: 170, alignment: .leading)
+                        .font(.caption).frame(minWidth: Platform.isPhone ? 0 : 170, alignment: .leading)
                     Text(String(format: "%.1f s", row.result.features["duration_s"] ?? 0)).font(.caption)
                     Spacer()
                     Button(row.wrong ? "marked" : "Wrong") { live.markWrong(row.id) }.disabled(row.wrong)
                 }
             }
-            .frame(minHeight: 180)
+            .frame(minHeight: Platform.isPhone ? 320 : 180)
             Text("Log: \(live.logPath)").font(.caption).foregroundColor(.secondary).textSelection(.enabled)
+        }
         }
         .onAppear { live.start() }
         .onDisappear { live.stop() }

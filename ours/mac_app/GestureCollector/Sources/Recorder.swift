@@ -68,11 +68,13 @@ final class Recorder: NSObject, ObservableObject, CMHeadphoneMotionManagerDelega
 
     func start() {
         guard manager.isDeviceMotionAvailable else {
-            status = "Headphone motion is not available on this Mac (needs macOS 14+)."
+            status = Platform.isPhone ? "Headphone motion is not available on this iPhone (needs iOS 16+)."
+                                      : "Headphone motion is not available on this Mac (needs macOS 14+)."
             return
         }
         if CMHeadphoneMotionManager.authorizationStatus() == .denied {
-            status = "Permission DENIED: System Settings > Privacy & Security > Motion & Fitness"
+            status = Platform.isPhone ? "Permission DENIED: Settings > Privacy & Security > Motion & Fitness > Gesture Collector"
+                                      : "Permission DENIED: System Settings > Privacy & Security > Motion & Fitness"
         }
         manager.startDeviceMotionUpdates(to: queue) { [weak self] motion, error in
             guard let self = self else { return }
@@ -139,7 +141,7 @@ final class Recorder: NSObject, ObservableObject, CMHeadphoneMotionManagerDelega
             lastRateTime = now
             if total == 0 && now.timeIntervalSince(startTime) > 3 {
                 status = connected ? "AirPods connected but no data: put BOTH AirPods in."
-                                   : "No AirPods data: connect AirPods to THIS Mac and wear them."
+                                   : "No AirPods data: connect AirPods to THIS \(Platform.isPhone ? "iPhone" : "Mac") and wear them."
             } else if total > 0 {
                 // some AirPods models stream at 25 Hz, most at 50 Hz
                 status = rateHz > 20 ? "Receiving data OK" : (rateHz > 0 ? "Data rate is LOW" : "Data STOPPED")

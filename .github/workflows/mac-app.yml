@@ -50,6 +50,11 @@ jobs:
           lipo -info ours/mac_app/GestureCollector/GestureCollector.app/Contents/MacOS/GestureCollector
           plutil -lint ours/mac_app/GestureCollector/GestureCollector.app/Contents/Info.plist
           codesign --verify --verbose ours/mac_app/GestureCollector/GestureCollector.app
+      - name: Build iPhone app (unsigned .ipa)
+        run: |
+          bash ours/mac_app/GestureCollector/build_ios.sh
+          unzip -l ours/mac_app/GestureCollector/GestureCollector-iOS.ipa
+          plutil -lint ours/mac_app/GestureCollector/Info-iOS.plist
       - name: Zip
         run: |
           cd ours/mac_app/GestureCollector
@@ -59,6 +64,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete gesture-collector --yes --cleanup-tag || true
-          gh release create gesture-collector ours/mac_app/GestureCollector/GestureCollector.zip --target "$GITHUB_SHA" \
-            --title "Gesture Collector (macOS data-collection app)" \
-            --notes "Unzip, then right-click GestureCollector.app > Open (first time: System Settings > Privacy & Security > Open Anyway). Needs macOS 14+ and AirPods with head tracking (Pro, 3, 4, 5, Max). v2.2: live recognizer (Rules / Model) + pilot plan changes. Built from $GITHUB_SHA."
+          gh release create gesture-collector ours/mac_app/GestureCollector/GestureCollector.zip             ours/mac_app/GestureCollector/GestureCollector-iOS.ipa ours/mac_app/PILOT_GUIDE.md --target "$GITHUB_SHA"             --title "Gesture Collector v3 (Mac + iPhone data-collection app)"             --notes "Pilot build. Mac: GestureCollector.zip (macOS 14+). iPhone: GestureCollector-iOS.ipa (iOS 16+, unsigned: install with Sideloadly or Xcode using your own Apple ID). Read PILOT_GUIDE.md first. AirPods with head tracking needed (Pro, 3, 4, 5, Max). Built from $GITHUB_SHA."

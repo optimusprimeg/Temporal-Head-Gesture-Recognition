@@ -1,5 +1,5 @@
-// Gesture Collector (macOS 14+): the CS724 data-collection app, v2.0 (APP_V2_PLAN.md, build step 1).
-// Build: bash build.sh
+// Gesture Collector: the CS724 data-collection app (macOS 14+ and iOS 16+, one shared code base), v3.
+// Build: bash build.sh (Mac app), bash build_ios.sh (iPhone app, unsigned .ipa for Sideloadly/Xcode).
 
 import SwiftUI
 

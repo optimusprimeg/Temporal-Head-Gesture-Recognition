@@ -165,16 +165,17 @@ enum LiveFeatures {
         return v[a..<b].reduce(0, +)
     }
 
-    /// Normalised signed area of the closed path (u, w) (features._loop, shoelace).
+    /// Signed area of the closed path (u, w) as a share of the circle at its peak radius (features._loop): +1 for
+    /// one full counter-clockwise circle, ~0 for a one-axis motion; independent of event length and sample rate.
     static func loop(_ u: [Double], _ w: [Double]) -> Double {
         guard !u.isEmpty else { return 0 }
-        var area = 0.0, energy = 0.0
+        var area = 0.0, peak = 0.0
         for i in 0..<u.count {
             let j = (i + 1) % u.count
             area += u[i] * w[j] - u[j] * w[i]
-            energy += u[i] * u[i] + w[i] * w[i]
+            peak = max(peak, u[i] * u[i] + w[i] * w[i])
         }
-        return 0.5 * area / (energy + 1e-9)
+        return 0.5 * area / (Double.pi * peak + 1e-9)
     }
 }
 
