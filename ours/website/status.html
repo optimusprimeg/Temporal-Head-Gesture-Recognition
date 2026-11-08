@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status and Checks</title>
+<meta name="description" content="Results so far, what an independent review confirmed and what it found wrong, and the fixes before the pilot.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<div class="eyebrow">Status and independent checks</div>
+<h1>What is shown, what is not, and what must be fixed first</h1>
+<p class="lede">Every number here comes from a results file in <code>ours/algorithm/results/</code>. An
+independent reviewer (a separate AI agent that read the code and results without our conclusions) checked
+the data collection, the features and the R analysis on 8 November 2026. Its findings are below, unfiltered.</p>
+
+<h2>Results so far</h2>
+<div class="table-wrap"><table>
+<tr><th>Test</th><th>Data</th><th>Result</th><th>How much it proves</th></tr>
+<tr><td>Earlier pipeline (random forest, 96 features)</td><td>4 earlier participants</td><td>0.91 same person, <b>0.61 new person</b>; MiniRocket 0.72; enrollment +10 points</td><td>the problem we set out to fix</td></tr>
+<tr><td>Full pipeline, each person tested by a model trained on the others</td><td>EarSet, 30 people, nod/turn/tilt</td><td>0.96 of head gestures recognised; 39 false single motions and 0.2 false commands per hour overall, 2-3 per hour while speaking</td><td><span class="tag ok">solid</span> for 3 motion families, no directions</td></tr>
+<tr><td>Trained on EarSet only, tested on our AirPods</td><td>P01 (developer)</td><td>21/21 with axis features (17/21 with all features)</td><td><span class="tag part">one person</span></td></tr>
+<tr><td>Detection on our app session</td><td>P01, 6.3 min</td><td>28 of 29 motion cues detected</td><td><span class="tag part">one person</span></td></tr>
+<tr><td>Direction from one sign</td><td>P01, 3-4 trials per motion</td><td>every left/right, up/down, cw/ccw pair separated</td><td><span class="tag part">small n</span></td></tr>
+<tr><td>Live recogniser (Rules / Model)</td><td>P01, 60 motions</td><td>Rules 0.93, Model 0.78; but Rules called all 12 of P01's talking events a motion (Model 4)</td><td><span class="tag no">in-sample</span> thresholds set on P01</td></tr>
+<tr><td>Two-motion commands</td><td>P01's motions, joined with pauses</td><td>0.90 with a 0.5 s pause; 0.32 with 0.1 s</td><td><span class="tag part">artificial joins</span></td></tr>
+<tr><td>Fast doubles</td><td>4 earlier participants, 290 doubles</td><td>84-89 % merged into one event</td><td><span class="tag ok">solid</span> for merging</td></tr>
+<tr><td>Head turn acceleration explained by rotation</td><td>P01, 14 seated trials</td><td>lever arm 8.6 cm; 91-92 % explained</td><td><span class="tag part">idea check</span></td></tr>
+</table></div>
+
+<h2>Independent review: what it confirmed</h2>
+<ul>
+  <li>The head frame is built correctly (right-handed, gravity from the half second before each event, nothing
+  from the future), and the detector is causal and handles data gaps.</li>
+  <li>Axis shares and linearity are unit-free and do not depend on event length or sample rate.</li>
+  <li>The R model matches its description; the confidence interval for person + style is bootstrapped as a sum
+  (the correct way); the rule file openly says it was written after seeing EarSet, and the code applies it as
+  written.</li>
+  <li>The Latin square is the standard design; the core repeats on each device (a proper crossover); the live
+  check never forces retakes, so no trial is selected by the classifier.</li>
+  <li>The earlier pipeline's numbers and the EarSet and P01 results quoted in our documents match their source
+  files.</li>
+</ul>
+
+<h2>Independent review: what it found wrong</h2>
+<div class="table-wrap"><table>
+<tr><th>Severity</th><th>Area</th><th>Finding</th><th>Fix</th></tr>
+<tr><td><span class="tag ok">fixed 8 Nov</span></td><td>Features</td><td>The loop feature shrank with event length and sample rate (0.063 at 1 s, 0.016 at 4 s, double at 25 Hz). Now: enclosed area / circle at the peak radius (1.0 for a circle at any length or rate); circle threshold re-derived (0.15); live model retrained; EarSet results unchanged (0.888 vs 0.889).</td><td>done (app v3)</td></tr>
+<tr><td><span class="tag no">high</span></td><td>Features / R</td><td>Only the three axis shares pass the R rule. Linearity failed; |loop| was never screened; the direction signs fail on EarSet (which has no direction labels) and rest on P01's few trials. The code comment calling linearity "R-screened" is wrong.</td><td>label these as unscreened; run the per-pair screening on pilot data</td></tr>
+<tr><td><span class="tag no">high</span></td><td>Results</td><td>The live recogniser's P01 numbers are in-sample: thresholds set on P01, and P01 in the model's training data.</td><td>evaluate only on people not used for tuning</td></tr>
+<tr><td><span class="tag ok">fixed 8 Nov</span></td><td>Collection</td><td>The core block order was fixed (small after normal; no-gesture last).</td><td>Pilot v3: sitting/small counterbalanced; no-gesture split early/late</td></tr>
+<tr><td><span class="tag ok">fixed 8 Nov</span></td><td>Collection</td><td>Modules were tracked per person, not per device.</td><td>Pilot v3 tracks modules per AirPods model</td></tr>
+<tr><td><span class="tag part">medium</span></td><td>Collection</td><td>The core takes ≈ 30 min with setup and practice, not 25.</td><td>plan 30-33 min</td></tr>
+<tr><td><span class="tag ok">improved 8 Nov</span></td><td>Collection</td><td>5 min of no-gesture time per session only bounds false commands below ≈ 0.9 per hour.</td><td>Pilot v3: 8 min per session; the bound is reported</td></tr>
+<tr><td><span class="tag ok">fixed 8 Nov</span></td><td>Collection</td><td>Re-wear and posture were optional.</td><td>Pilot v3 requires A or C for everyone</td></tr>
+<tr><td><span class="tag part">medium</span></td><td>R</td><td>In EarSet, "style" is one recording per person and gesture, so it also absorbs wear and fit; 100 bootstrap draws; many fits with zero person variance; device has only 2 levels and should be a fixed effect.</td><td>≥ 500 draws; device as fixed effect; note the limits</td></tr>
+<tr><td><span class="tag part">medium</span></td><td>Results</td><td>The old 4-person data is quoted as supporting direction features (0.94), but the full chain names its single events only 3-29 % right; two documents also give different numbers (0.94/0.97 vs 0.91/0.94).</td><td>soften the claim; reconcile the numbers</td></tr>
+<tr><td><span class="tag part">medium</span></td><td>Features</td><td>EarSet calibration nods come from the same nod recording that is tested, so the nod result is partly by construction (already noted in the project review).</td><td>use a separate calibration recording on our data (the app does)</td></tr>
+<tr><td><span class="tag part">medium</span></td><td>Plan</td><td>The app plan proposes rejecting trials whose motion does not match: that check is the classifier, which would inflate accuracy.</td><td>never drop failed trials from evaluation</td></tr>
+<tr><td><span class="tag info">low</span></td><td>Docs</td><td>experimental_design.md still describes the older 60-min plan, lists McNemar, and says calibration nods are "essential" (head frame vs raw is not significant on one device).</td><td>update the document</td></tr>
+</table></div>
+
+<h2>Fixes before the pilot, in order</h2>
+<ol class="steps">
+  <li><s>Fix the loop feature; counterbalance the core; track modules per device; add the pause instruction.</s>
+  Done in app v3 (Mac + iPhone) on 8 Nov.</li>
+  <li><b>Freeze all settings before P02</b> (git tag). P01 stays development data; every trial, including failed
+  ones, stays in the evaluation.</li>
+  <li><b>Correct the claims</b> in the code and documents: only the axis shares are R-screened today.</li>
+  <li><b>Self-test on P01 with live streaming</b> (data copied to the analysis PC as it is recorded) to settle the
+  pause, the axis-change cut and the walking cues without rebuilding the app for every change.</li>
+</ol>
+
+<h2>After the pilot</h2>
+<ul>
+  <li>Run the R rule on our own data, over all motions and per direction pair, with ≥ 500 bootstrap draws.</li>
+  <li>Compare all methods on the same splits: old random forest, MiniRocket, DTW, ours.</li>
+  <li>Choose the final motions and the 20 commands from the no-gesture recordings.</li>
+  <li>Build the team hub and the demo; measure end-to-end latency.</li>
+  <li>Covertness test with observers.</li>
+</ul>
+
+<h2>Where everything is</h2>
+<div class="table-wrap"><table>
+<tr><th>What</th><th>Where (in <code>ours/</code>)</th></tr>
+<tr><td>Recognition code (Python)</td><td><code>algorithm/gesturekit/</code></td></tr>
+<tr><td>R analysis and the keep rule</td><td><code>algorithm/r/</code></td></tr>
+<tr><td>All results</td><td><code>algorithm/results/</code></td></tr>
+<tr><td>Data-collection app (Swift)</td><td><code>mac_app/GestureCollector/</code>; plan <code>mac_app/APP_V2_PLAN.md</code></td></tr>
+<tr><td>Experimental design</td><td><code>experimental_design.md</code></td></tr>
+<tr><td>Full project review and decisions</td><td><code>PROJECT_REVIEW.md</code></td></tr>
+</table></div>
+</main>
+<script src="site.js"></script>
+</body>
+</html>

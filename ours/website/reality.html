@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Real-World Use and Problems</title>
+<meta name="description" content="How a team would use head-gesture commands in an operation, the central platform, and every known problem with how it is handled and tested.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<div class="eyebrow">The real world</div>
+<h1>From one person's nod to a whole team hearing the command</h1>
+<p class="lede">Picture team Alpha and team Charlie on an operation, each member wearing AirPods. Speaking or
+signalling with a hand would give them away. Alpha 2 sees movement on the left, tilts left and nods down. Every
+teammate hears <b>"Alpha 2: enemy left"</b> in their ears.</p>
+
+<h2>How it would work</h2>
+<svg class="diagram" viewBox="0 0 1000 300" role="img" aria-labelledby="ot od">
+  <title id="ot">Operation flow</title>
+  <desc id="od">The sender's phone recognises the command on the device and plays a private chime with a short cancel window, then sends a small message to the team hub, which routes it to teammates who hear it and nod to acknowledge.</desc>
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color: var(--muted)"/></marker></defs>
+  <g font-size="14">
+    <rect class="box" x="10" y="30" width="200" height="96" rx="10"/><text x="110" y="58" text-anchor="middle" font-weight="600">Sender (Alpha 2)</text><text class="sub" x="110" y="80" text-anchor="middle">AirPods + phone</text><text class="sub" x="110" y="100" text-anchor="middle">recognised on the device</text>
+    <rect class="box hi" x="270" y="30" width="200" height="96" rx="10"/><text x="370" y="58" text-anchor="middle" font-weight="600">Private chime</text><text class="sub" x="370" y="80" text-anchor="middle">"enemy left?" in own ear</text><text class="sub" x="370" y="100" text-anchor="middle">1.5 s to cancel (head shake)</text>
+    <rect class="box hi" x="530" y="30" width="200" height="96" rx="10"/><text x="630" y="58" text-anchor="middle" font-weight="600">Team hub</text><text class="sub" x="630" y="80" text-anchor="middle">roster, dictionary, routing</text><text class="sub" x="630" y="100" text-anchor="middle">log, "not me" flags</text>
+    <rect class="box" x="790" y="30" width="200" height="96" rx="10"/><text x="890" y="58" text-anchor="middle" font-weight="600">Teammates</text><text class="sub" x="890" y="80" text-anchor="middle">hear "Alpha 2: enemy left"</text><text class="sub" x="890" y="100" text-anchor="middle">nod twice = acknowledged</text>
+    <path class="arrow" d="M210 78 H266"/><path class="arrow" d="M470 78 H526"/><path class="arrow" d="M730 78 H786"/>
+    <text class="sub" x="498" y="68" text-anchor="middle">≈ 100 bytes</text>
+    <path class="arrow" d="M890 126 V200 H130 V130"/>
+    <text class="sub" x="510" y="220" text-anchor="middle">sender hears "acked by 3"</text>
+    <text class="sub" x="510" y="262" text-anchor="middle">Raw motion never leaves the phone. Only the recognised command travels.</text>
+  </g>
+</svg>
+<div class="grid">
+  <div class="card"><h3>The central platform (hub)</h3><p>Knows who is in which team and online (battery,
+  which earbud streams), holds each team's dictionary, routes each command to the right people, shows a live
+  timeline with acknowledgements, and keeps an after-action log. A <b>"not me"</b> button turns every false
+  command into a labelled example for retraining.</p></div>
+  <div class="card"><h3>The demo we can build now</h3><p>The Mac runs the recogniser and the hub. Teammates'
+  phones (any phone) join the same Wi-Fi from a phone hotspot (no internet needed), open a web page, hear the
+  command and tap to acknowledge. An iPhone app is optional, later.</p></div>
+  <div class="card"><h3>In the field, later</h3><p>The same small message could travel over a mesh radio or
+  LTE, and plug into ATAK, the team map app many forces already use (it has a mesh-radio plugin).</p></div>
+</div>
+
+<h2>Every known problem, and how we handle it</h2>
+<p>Status: <span class="tag ok">handled</span> designed and shown on data, <span class="tag part">partly</span>
+designed or shown on little data, <span class="tag no">open</span> not handled yet, <span class="tag info">test planned</span>.</p>
+<div class="table-wrap"><table>
+<tr><th>Problem</th><th>Why it matters</th><th>How we handle it</th><th>Status</th></tr>
+<tr><td>Every earbud sits differently</td><td>the same nod looks different per person and per AirPods model</td><td>head frame from gravity + 3 calibration nods; R-chosen features</td><td><span class="tag ok">handled</span> 21/21 EarSet → P01</td></tr>
+<tr><td>People move their heads all the time</td><td>one stray nod or turn must not send a command</td><td>two motions in order within 1.5 s; same motion twice never counts; the final 20 = pairs everyday motion produces least</td><td><span class="tag part">partly</span> EarSet: about 0.2 false commands/h overall</td></tr>
+<tr><td>Talking and nodding along</td><td>the hardest everyday case</td><td>no-gesture blocks (talking, listening, looking behind); "not a gesture" class; gate</td><td><span class="tag part">partly</span> EarSet: 2-3 false commands/h while speaking</td></tr>
+<tr><td>Two motions done too fast</td><td>they merge into one event and the command is lost</td><td>instruction: short still pause; designed fix: cut where the rotation axis changes</td><td><span class="tag part">partly</span> 0.90 with a 0.5 s pause</td></tr>
+<tr><td>Different gesture sizes and speeds</td><td>small motions are more covert but harder to detect</td><td>variable-length detector; length-independent features; small and fast rounds in the data</td><td><span class="tag info">test planned</span> core + module B</td></tr>
+<tr><td>Walking</td><td>steps shake the head; the still level was set seated</td><td>detection stricter as body motion grows; off while running; walking module with corners</td><td><span class="tag info">test planned</span> module D</td></tr>
+<tr><td>Body turn vs head turn</td><td>turning a corner looks like "turn left" to an earbud</td><td>(1) a gesture returns to the front, a body turn does not (net heading); (2) acceleration that head rotation cannot explain = body motion</td><td><span class="tag part">idea backed by physics</span> see below</td></tr>
+<tr><td>Re-wearing the AirPods</td><td>a new fit changes the earbud angle</td><td>recalibrate after re-wear; module A measures the effect</td><td><span class="tag info">test planned</span></td></tr>
+<tr><td>Only one earbud streams</td><td>if it falls out, the stream jumps to the other bud with a 1 s gap and a heading reset</td><td>the app detects the switch and asks for recalibration; events until then are flagged</td><td><span class="tag ok">handled</span> in the app; automatic recalibration is open</td></tr>
+<tr><td>Microphone in use</td><td>developers report motion stops while the AirPods mic is on (unverified)</td><td>a 2-minute test before the pilot</td><td><span class="tag info">test planned</span></td></tr>
+<tr><td>Helmet or cap</td><td>straps shift the fit; extra weight makes motions smaller</td><td>one cap/helmet session in the pilot</td><td><span class="tag info">test planned</span></td></tr>
+<tr><td>Stress</td><td>motions get faster and jerkier than calm training data</td><td>fast rounds (module B); field study out of scope</td><td><span class="tag no">open</span></td></tr>
+<tr><td>Latency</td><td>two motions + 0.4 s end check + cancel window + network + speech ≈ 3-5 s</td><td>measure end-to-end in the demo; shorten the cancel window if needed</td><td><span class="tag info">test planned</span></td></tr>
+<tr><td>Battery</td><td>AirPods last about 6 h; continuous motion streaming may cost more</td><td>1-hour drain test</td><td><span class="tag no">open</span></td></tr>
+<tr><td>Message security</td><td>a command could be intercepted, faked or replayed</td><td>standard encryption and per-device keys on the hub link</td><td><span class="tag no">open</span> engineering, not research</td></tr>
+<tr><td>A new person on day one</td><td>the old pipeline fell from 0.91 to 0.61 on a new person</td><td>person-independent features; optional personal enrollment (2 rounds recorded; curve from the data)</td><td><span class="tag info">test planned</span> pilot</td></tr>
+</table></div>
+
+<h2>Body turn vs head turn: acceleration is the key</h2>
+<p>An earbud cannot see the body, so turning at a corner and turning the head look alike in the rotation
+signal. Two cues separate them:</p>
+<ol class="steps">
+  <li><b>Net heading.</b> A gesture goes out and comes back: P01's turns went 60-80° out and returned to within
+  about 3°. A body turn at a corner changes the heading and stays. The heading comes from the AirPods' orientation
+  (quaternion), not from adding up rotation rate, which gives a false 55-72° for circles.</li>
+  <li><b>Acceleration head rotation cannot explain.</b> The earbud sits beside the neck's rotation axis, so a
+  pure head turn already accelerates it (P01: 4.5-6.4 m/s² peak). Treating the head as rigid,
+  a<sub>ear</sub> = a<sub>body</sub> + α × r + ω × (ω × r). Fitting r on half of P01's seated trials gave
+  <b>8.6 cm to the side</b>, which is where the ear is, found from data alone. On the other half, head rotation
+  explained <b>91-92 % of the acceleration in turns</b>. Whatever is left over is the body moving, so detection can
+  get stricter as that leftover grows, and switch off while running.</li>
+</ol>
+<div class="note warn">One person, 14 trials, seated. Even with a still body the leftover peaked at 1.5-2.2 m/s², so
+the separation has to be shown on the walking recordings. Script: <code>algorithm/scripts/lever_arm_check.py</code>.</div>
+
+<h2>Covertness: what we can actually measure</h2>
+<p>Nobody outside the team knows the dictionary, so the question is not "which command was it?" but "was a
+command sent at all?" Two measures:</p>
+<ul>
+  <li><b>Observers:</b> short video clips, half with a command and half with ordinary head movement; observers
+  answer yes or no. Covert means their accuracy is near chance (50 %), reported as d′.</li>
+  <li><b>From the data alone:</b> compare each command's angle, speed and duration with everyday head movement
+  in the no-gesture recordings. Commands inside the everyday range are objectively inconspicuous.</li>
+</ul>
+<div class="note">Covertness and false commands are two sides of one coin: the more a command looks like normal
+movement, the more normal movement looks like a command. The plot of accuracy and false commands against gesture
+size is one of the paper's key figures.</div>
+
+<h2>Will it work in the field?</h2>
+<div class="grid">
+  <div class="card"><h3>Seated or standing (watch post, checkpoint)</h3><p><span class="tag part">promising, not
+  yet shown</span> Recognition transfers across people and devices; false commands while talking need the pilot's
+  real timelines.</p></div>
+  <div class="card"><h3>Moving (patrol)</h3><p><span class="tag no">biggest unknown</span> Needs the walking data,
+  the body-turn cues, and probably gating or a wake gesture.</p></div>
+  <div class="card"><h3>Covert</h3><p><span class="tag info">not measured yet</span> The observer test and the
+  size analysis above answer it.</p></div>
+</div>
+</main>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Collection Process</title>
+<meta name="description" content="What one recording session contains, why, how the time budget and counterbalancing work, how labels are made, and what the pilot will collect.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<div class="eyebrow">Data collection</div>
+<h1>One Mac, one pair of AirPods, one continuous session</h1>
+<p class="lede">The Gesture Collector app (macOS) runs the whole session: it explains each motion with a 3D head,
+speaks the cues through the AirPods, records every sample, checks each trial live, and resumes after a crash.
+It replaces the earlier set-up (Sensor Logger on a phone plus a separate cue script), which cut the data into
+2.5-second clips and had no real no-gesture time.</p>
+
+<div class="grid">
+  <div class="stat"><div class="v">20</div><div class="l">participants</div><div class="s">5 team + 15 others; 2 sessions each (one per AirPods model)</div></div>
+  <div class="stat"><div class="v">≈ 96 min</div><div class="l">recorded per person</div><div class="s">≈ 47 examples of every motion</div></div>
+  <div class="stat"><div class="v">≈ 32 h</div><div class="l">for the whole study</div><div class="s">945 examples per motion, 900 commands, 5 h of no-gesture time</div></div>
+  <div class="stat"><div class="v">2</div><div class="l">AirPods models</div><div class="s">AirPods Pro 2 and AirPods 5, every person uses both</div></div>
+</div>
+<p style="font-size:14px;color:var(--muted)">Volumes: <code>mac_app/data_collection_page.html</code> (also published as a page), computed from the app's own plan.</p>
+
+<h2>What happens in one session</h2>
+<ol class="steps">
+  <li><b>Participant and time.</b> First name, number (P01, P02...), and how many minutes they have. Names are kept
+  in the data, as the team decided.</li>
+  <li><b>Device check.</b> Sample rate (50 Hz, 25 on some models), gravity close to 9.81 m/s², which earbud is
+  streaming, and the AirPods model macOS reports. A live 3D head follows the person's head.</li>
+  <li><b>Calibration.</b> 4 s still (sets the person's still level), 3 slow nods with the chin going down first
+  (sets the head frame), then look left, right and front. Repeated after re-wearing, and automatically if the
+  stream jumps to the other earbud.</li>
+  <li><b>Practice.</b> 2 trials of each motion in the first session (1 later), with the 3D head showing the motion
+  and the person's own head side by side.</li>
+  <li><b>Core blocks, then optional modules,</b> in the order the time-budget planner chose (below).</li>
+  <li><b>Export.</b> One folder per session, zipped, ready to hand over.</li>
+</ol>
+
+<h3>One trial (cue)</h3>
+<p>The motion is shown on screen and spoken through the AirPods (for example "tilt left"). The app logs that
+moment, then plays a GO beep, reserves 4 s for the motion (6 s for a command), checks it live ("one motion ✓",
+"we saw 3 motions: do it ONCE", "no motion seen"), and waits a random 2.5 to 5 s so the rhythm is not
+predictable. Two "nothing" cues per round record stillness on purpose.</p>
+
+<h2>Core (every person) and optional modules</h2>
+<p>The core is never cut. The optional modules fill the remaining time. Each one answers one question.</p>
+<div class="table-wrap"><table>
+<tr><th>Block</th><th>What the person does</th><th class="num">≈ min</th><th>Why (hypothesis)</th></tr>
+<tr><td><b>Core</b>: enrollment</td><td>2 rounds of all 8 motions, slow and clear</td><td class="num" rowspan="6">25<br><span style="font-size:12px;color:var(--muted)">≈ 30 with setup and practice</span></td><td>personal examples (enrollment curve)</td></tr>
+<tr><td>Core: sitting</td><td>6 rounds of all 8 motions, random order</td><td>main training and test data (H1, H5)</td></tr>
+<tr><td>Core: small</td><td>2 rounds, "as small as a computer could still notice"</td><td>covert size (H4)</td></tr>
+<tr><td>Core: commands</td><td>10 two-motion commands</td><td>command accuracy (H2)</td></tr>
+<tr><td>Core: own pace</td><td>a list of 5 commands, done when ready</td><td>realistic timing (H2, H3)</td></tr>
+<tr><td>Core: no gestures</td><td>2 min talking, 1 min listening and nodding along, then looking behind, looking around, standing up and sitting down (v2.2)</td><td>false commands (H6)</td></tr>
+<tr><td><b>A</b> Re-wear</td><td>take both AirPods out and back in, recalibrate, 4 rounds</td><td class="num">8</td><td>does a new fit change the signal (H1)</td></tr>
+<tr><td><b>B</b> Speed and size</td><td>slow, fast, small rounds</td><td class="num">7</td><td>variable length (H3), covert (H4)</td></tr>
+<tr><td><b>C</b> Posture</td><td>standing; head already turned or tilted</td><td class="num">7</td><td>posture bias (H1)</td></tr>
+<tr><td><b>D</b> Walking (v2.2)</td><td>walking slowly round the room with corners, 10 commands while walking, walking with turns and no gestures</td><td class="num">≈ 8</td><td>moving use, body turn vs head turn (H1, H6)</td></tr>
+<tr><td><b>E</b> More commands</td><td>two motions at set pauses (0.3 / 0.6 / 1.0 s), 10 commands, own-pace list</td><td class="num">5</td><td>pairs and pauses (H2, H3)</td></tr>
+<tr><td><b>F</b> Daily life</td><td>chewing, drinking, phone use, reading aloud, watching a video</td><td class="num">8</td><td>false commands in normal life (H6)</td></tr>
+<tr><td><b>G</b> Extra rounds</td><td>sitting rounds, only to fill leftover time</td><td class="num">2 / round</td><td>precision</td></tr>
+</table></div>
+
+<h3>The hypotheses the data must test</h3>
+<div class="table-wrap"><table>
+<tr><th></th><th>Hypothesis</th><th>Collected by</th></tr>
+<tr><td>H1</td><td>The head frame removes most person, posture and device differences</td><td>calibration; both devices on the same people; module A (re-wear), C (posture), D (walking)</td></tr>
+<tr><td>H2</td><td>Commands built from parts reach high accuracy on a new person without personal training</td><td>core commands + own-pace list; module E</td></tr>
+<tr><td>H3</td><td>Finding motions of any length beats fixed windows</td><td>continuous stream; module B (slow / fast); module E (pauses)</td></tr>
+<tr><td>H4</td><td>Small, covert motions keep most of their accuracy</td><td>core small rounds; module B</td></tr>
+<tr><td>H5</td><td>A few statistically chosen physics features generalise as well as a learned model</td><td>everything above, ≥ 15 people for the mixed models</td></tr>
+<tr><td>H6</td><td>False commands in normal life stay rare</td><td>core no-gesture block; modules D and F</td></tr>
+</table></div>
+
+<h2>Fitting any amount of time, fairly</h2>
+<div class="grid">
+  <div class="card"><h3>Time budget</h3><p>The experimenter types the minutes available (15 to 120). The planner puts
+  the core first, then as many optional modules as fit, then extra rounds. Short on time? You still get the core.</p></div>
+  <div class="card"><h3>Rotated module order</h3><p>Modules A-F follow a Williams Latin square by participant number,
+  so every module is early for some people and late for others (fatigue and practice even out), and each module
+  follows each other one equally often. Re-wear is never last.</p></div>
+  <div class="card"><h3>Device crossover</h3><p>Half the people start with AirPods Pro 2, half with AirPods 5; the
+  second session uses the other model. Device and session order are therefore not mixed up.</p></div>
+  <div class="card"><h3>Planned missing data</h3><p>Not everyone does every module; the rotation spreads them
+  evenly, and the roster tracks what each person has done on each device so the next session fills the gaps.</p></div>
+</div>
+
+<h2>Known weaknesses of the protocol (from the independent check)</h2>
+<div class="table-wrap"><table>
+<tr><th>Weakness</th><th>Effect</th><th>Fix</th></tr>
+<tr><td>The core blocks always come in the same order (enrollment, sitting, small, commands, no gestures)</td><td>small vs normal size (H4) is mixed up with practice and fatigue; the no-gesture block is always last</td><td>alternate the sitting and small blocks by participant number</td></tr>
+<tr><td>Optional modules are tracked per person, not per device, and the module row also fixes which device comes first</td><td>each module is recorded on one device only, partly tied to device order</td><td>track modules per device, or decouple the module order from device order</td></tr>
+<tr><td>The core lasts ≈ 30 min with setup and practice, not 25</td><td>a 25-min budget gets flagged incomplete</td><td>plan 30-33 min for the core session</td></tr>
+<tr><td>Only 5 min of no-gesture time per session in the core</td><td>40 sessions ≈ 3.3 h: zero false commands would only show the rate is below ≈ 0.9 per hour</td><td>more no-gesture time, or report that bound honestly</td></tr>
+<tr><td>Re-wear and posture are optional modules</td><td>the head frame's robustness is the claim least shown so far (head frame vs raw: 0.97 vs 0.95, not significant)</td><td>make sure every participant does A or C at least once</td></tr>
+<tr><td>P01 is the developer and settings were tuned on P01</td><td>P01's numbers are optimistic</td><td>freeze settings before P02; naive participants are the test</td></tr>
+</table></div>
+<p>What the check confirmed as correct: the Latin square is the standard design, the core repeats on each device
+(a proper crossover), the live one-motion check only gives feedback and never forces a retake (so no trial is
+selected by the classifier), and resume and repeat-after-earbud-switch work as intended.</p>
+
+<h2>From recording to labels</h2>
+<p>Nothing in the data assumes how long a motion lasts. The detector (the same one used live) finds events in
+the continuous stream, and the cue log names them:</p>
+<ul>
+  <li>A motion window opens 0.3 s before the motion is announced (people start early: 61 % of P01's motions began
+  before the GO beep) and closes 4 s after GO.</li>
+  <li>If several events fall in one window, the largest is the motion and the small ones are marked "extra".</li>
+  <li>Events in a "nothing" cue or a no-gesture block are "none" (not a gesture).</li>
+  <li>Practice, calibration, re-wear steps, and cues the experimenter marked skipped or disturbed are excluded.</li>
+</ul>
+<p>Files per session: <code>stream_NNN.csv</code> (every sample), <code>cues.csv</code> (every cue with its
+announce and GO times and the live verdict), <code>notes.csv</code> (experimenter actions, earbud switches, data
+gaps), <code>session.json</code> (who, which device, versions) and <code>state.json</code> (for resume).</p>
+
+<h2>Before the pilot: changes and procedure</h2>
+<div class="table-wrap"><table>
+<tr><th>Change</th><th>Why</th></tr>
+<tr><td>Module D: real walking with corners, plus commands while walking</td><td>walking in place never turns the body; body turns at corners are the main open question for moving use</td></tr>
+<tr><td>Hard no-gesture activities in the core</td><td>looking behind and looking around are the everyday movements most like commands</td></tr>
+<tr><td>Instruction: a short still pause between the two motions of a command</td><td>without it, the two motions merge (see <a href="commands.html">Commands</a>); to be added to the app</td></tr>
+<tr><td>Freeze the analysis settings (git tag) before P02</td><td>P01 is the developer and settings were tuned on P01's data; only untouched people count as a test</td></tr>
+<tr><td>One microphone test, one cap/helmet session, phone video of 2-3 people</td><td>does motion stop while the AirPods mic is on; does a helmet change the signal; clips for the covertness test</td></tr>
+</table></div>
+<p>The pilot is 5 people × 2 sessions (one per device). It decides the final motions and the 20 commands, and
+checks the protocol before the 15 other participants.</p>
+</main>
+<script src="site.js"></script>
+</body>
+</html>

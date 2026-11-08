@@ -49,7 +49,7 @@ end the block early. Every action is logged in the cue log.
 ## 3. Session plan and bias control
 
 The plan is a **JSON file** (motions, instructions, blocks, counts), so the vocabulary can change after the pilot
-without rebuilding the app. Same block kinds as `collector/config.py`: calibration, rounds, pairs, commands,
+without rebuilding the app. Same block kinds as `archive/collector_v3/config.py` (superseded): calibration, rounds, pairs, commands,
 self-paced, re-wear, negatives.
 
 Randomisation, all from a per-participant seed stored in `session.json`:

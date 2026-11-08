@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Features and R Analysis</title>
+<meta name="description" content="How a head motion becomes a few numbers (head frame and features), and how a mixed model in R decided which numbers to trust across people.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<div class="eyebrow">Features and statistics</div>
+<h1>Turn each motion into a few numbers that mean the same for everyone</h1>
+<p class="lede">A motion is up to 200 samples of rotation and acceleration. We describe it with a handful of
+physical numbers instead, and we let statistics, not intuition, decide which numbers depend on the
+<b>gesture</b> rather than on the <b>person</b>.</p>
+
+<h2>Step 1: the head frame</h2>
+<p>The AirPods measure rotation in the earbud's own axes, and every earbud sits at a different angle in every
+ear. The same nod can look like a mix of all three axes for two different people. So before computing anything
+we rotate each motion into the head's axes:</p>
+<div class="grid">
+  <div class="card"><h3><span class="dot" style="background:var(--turn)"></span>z: up</h3><p>Opposite to gravity,
+  measured in the half second before the motion. This removes how the earbud is tilted in the ear and how the
+  head is held.</p></div>
+  <div class="card"><h3><span class="dot" style="background:var(--nod)"></span>x: the nod axis</h3><p>From the 3
+  calibration nods: the horizontal axis the head turned about. The chin goes down first, so the first swing of a
+  nod is positive about x, for everyone.</p></div>
+  <div class="card"><h3><span class="dot" style="background:var(--tilt)"></span>y: the nose axis</h3><p>Completes
+  the set (y = z × x). Tilts turn about y, turns about z, nods about x.</p></div>
+</div>
+<p>After this, "nod" means rotation about x for every person and every AirPods model. That is hypothesis H1, and
+it is what lets a model trained on other people work on you.</p>
+
+<h2>Step 2: the features</h2>
+<p>Four groups, each with a plain physical meaning (code: <code>algorithm/gesturekit/features.py</code>).</p>
+<div class="table-wrap"><table>
+<tr><th>Group</th><th>Features</th><th>What they measure</th><th>Says which gesture, or who?</th></tr>
+<tr><td><b>Axis</b></td><td><code>share_x</code>, <code>share_y</code>, <code>share_z</code>, <code>linearity</code></td><td>what fraction of the rotation is nod, tilt or turn; whether it stays on one fixed axis</td><td>the gesture family</td></tr>
+<tr><td><b>Signed</b></td><td><code>first_lobe_x/y/z</code>, <code>loop_xy/xz/yz</code></td><td>direction of the first swing on each axis; which way the path loops (clockwise or not)</td><td>the direction (left/right, up/down, cw/ccw)</td></tr>
+<tr><td><b>Timing</b></td><td>rotation and acceleration peaks, gaps between them, high-frequency shake</td><td>rhythm and smoothness</td><td>mostly the person</td></tr>
+<tr><td><b>Magnitude</b></td><td>peak and average speed, duration, number of back-and-forths</td><td>how big and fast</td><td>mostly the person (useful to tell a gesture from talking)</td></tr>
+</table></div>
+<p>All are computed on the whole detected event, whatever its length. The shares and linearity are ratios, so a
+slow and a fast nod give the same values. The loop features are too since 8 Nov: the independent check found the old formula shrank with event length and
+sample rate, so it is now the enclosed area divided by the circle at the peak radius (1.0 for a perfect circle,
+near 0 for a one-axis motion, at any length or rate).</p>
+<figure><img src="assets/3_axis_shares_p01.png" alt="Axis shares of P01's motions: nods load on x, tilts on y, turns on z, circles spread over all three."><figcaption>P01's real motions in the head frame: nods carry 0.93-0.99 of their rotation on x, turns 0.98 on z, tilt right 0.95 on y. Tilt left is less clean (0.69 tilt, 0.27 turn). Source: <code>results/p01_airpods_report.md</code>.</figcaption></figure>
+
+<h2 id="r">Step 3: which features to trust, decided in R</h2>
+<p>The earlier version of this project used 96 hand-picked statistics and a random forest. It scored 0.91 on
+people it had seen and 0.61 on a new person: many features described the person, not the gesture. We test that
+directly.</p>
+<h3>The idea: split each feature's variation into its causes</h3>
+<p>For every feature, a linear mixed model (R, <code>lme4</code>) splits its total variance into four parts:</p>
+<div class="grid">
+  <div class="card"><h3>Gesture</h3><p>differences between nod, turn and tilt. <b>We want this large.</b></p></div>
+  <div class="card"><h3>Person</h3><p>some people always give higher values, whatever the gesture.</p></div>
+  <div class="card"><h3>Style</h3><p>person × gesture: this person nods in their own way.</p></div>
+  <div class="card"><h3>Repetition</h3><p>trial-to-trial noise of the same person and gesture.</p></div>
+</div>
+<p><code>feature ~ gesture + (1 | person) + (1 | person:gesture)</code>, each feature standardised, with 95 %
+bootstrap confidence intervals (<code>algorithm/r/variance_components.R</code>).</p>
+<h3>The keep rule (written down before our own data)</h3>
+<ol>
+  <li>gesture share ≥ 0.30, and</li>
+  <li>gesture share ≥ 2 × (person + style), and</li>
+  <li>the lower confidence limit of the gesture share is above the upper limit of person + style.</li>
+</ol>
+<p>It is applied to all motions together <b>and</b> to each confusable pair (tilt L vs R, turn L vs R, circle cw
+vs ccw), because a direction feature separates one pair and is invisible over the whole vocabulary. Inside every
+cross-validation fold it is refit on the training people only, so the test person never influences the choice.
+Rule text: <code>algorithm/r/SCREENING_RULE.md</code> (version 2, written after seeing EarSet; fixed before any
+pilot data).</p>
+
+<h3>Result on EarSet (30 people, nod / shake / tilt)</h3>
+<div class="table-wrap"><table>
+<tr><th>Feature</th><th class="num">Gesture</th><th class="num">Person</th><th class="num">Style</th><th class="num">Repetition</th><th>Keep</th></tr>
+<tr><td>share_x</td><td class="num">0.98</td><td class="num">0.00</td><td class="num">0.01</td><td class="num">0.02</td><td><span class="tag ok">yes</span></td></tr>
+<tr><td>share_z</td><td class="num">0.93</td><td class="num">0.00</td><td class="num">0.04</td><td class="num">0.03</td><td><span class="tag ok">yes</span></td></tr>
+<tr><td>share_y</td><td class="num">0.90</td><td class="num">0.00</td><td class="num">0.06</td><td class="num">0.04</td><td><span class="tag ok">yes</span></td></tr>
+<tr><td>linearity</td><td class="num">0.24</td><td class="num">0.00</td><td class="num">0.21</td><td class="num">0.56</td><td><span class="tag no">no</span></td></tr>
+<tr><td>rms_rot (speed)</td><td class="num">0.30</td><td class="num">0.34</td><td class="num">0.17</td><td class="num">0.19</td><td><span class="tag no">no</span></td></tr>
+<tr><td>peak_rot (speed)</td><td class="num">0.26</td><td class="num">0.37</td><td class="num">0.17</td><td class="num">0.20</td><td><span class="tag no">no</span></td></tr>
+<tr><td>acc_hf_rms (shake)</td><td class="num">0.13</td><td class="num">0.44</td><td class="num">0.24</td><td class="num">0.20</td><td><span class="tag no">no</span></td></tr>
+<tr><td>first_lobe_x/y/z, loops</td><td class="num">0.00-0.22</td><td class="num">0.00-0.10</td><td class="num">0.30-0.45</td><td class="num">0.32-0.66</td><td><span class="tag part">cannot judge here</span></td></tr>
+</table></div>
+<p>Full table: <code>results/variance_components.md</code> (2035 gesture events; 100 bootstrap draws, at least 500
+for the paper).</p>
+<figure><img src="assets/4_variance_earset.png" alt="Stacked bars of variance shares per feature: axis shares are almost all gesture; speed, size and timing features are mostly person and style."><figcaption>Where each feature's variation comes from (EarSet). The axis shares are almost pure gesture; speed, size and timing are mostly person, style and noise.</figcaption></figure>
+
+<h3>What this means</h3>
+<ul>
+  <li><b>Axis shares are the gesture.</b> 0.90-0.98 of their variation is the gesture, at most 0.06 is the person.
+  Partly by construction (nod, shake and tilt each turn about a different axis), which is exactly why the head
+  frame matters.</li>
+  <li><b>Speed, size and rhythm are the person.</b> They are not used to say <i>which</i> gesture. They can still
+  help tell a gesture from talking or chewing, which is judged separately, by leave-one-person-out tests.</li>
+  <li><b>Direction features cannot be judged on EarSet</b>, because EarSet does not record left vs right. Their
+  "gesture" share is near zero only because both directions are pooled. Supporting evidence: on the old
+  4-person AirPods data they separate tilt left/right (0.52 → 0.94) and circle cw/ccw (0.54 → 0.97), and on P01
+  one sign separated every direction pair (3-4 trials per motion). But when the full chain names single events on
+that old 4-person data, it gets only 3-29 % right (<code>results/pair_reliability.md</code>), so the 4-person
+figure is weaker evidence than it looks. The formal per-pair check runs on pilot data.</li>
+</ul>
+
+<h2>The features the live recogniser uses, and how well each is justified</h2>
+<div class="table-wrap"><table>
+<tr><th>Feature in the app</th><th>Used for</th><th>Justified by</th><th>Status</th></tr>
+<tr><td>share_x, share_y, share_z</td><td>family (nod / tilt / turn)</td><td>R keep rule on EarSet; 21/21 from EarSet to P01</td><td><span class="tag ok">supported</span></td></tr>
+<tr><td>sign of the first swing</td><td>direction</td><td>physics of the head frame; P01: every pair separated; old 4-person data</td><td><span class="tag part">R check pending (pilot)</span></td></tr>
+<tr><td>|loop| per plane</td><td>circle vs one-axis motion</td><td>circles draw a loop, one-axis motions do not; EarSet has no circles. Formula fixed 8 Nov</td><td><span class="tag part">untested by R</span></td></tr>
+<tr><td>linearity</td><td>model input</td><td>failed the R rule (gesture 0.24)</td><td><span class="tag no">revisit</span></td></tr>
+</table></div>
+<div class="note warn">Only the three axis shares pass the R rule. Linearity failed it, the |loop| inputs were never
+screened, and the direction signs rest on P01's few trials. The Rules thresholds were
+also set on P01's data. So the live recogniser's numbers on P01 are development numbers, not a test. The
+Rules mode uses only the shares, the signs and the loop. After the pilot the R rule runs on our own data,
+including circles and direction pairs, and the model is retrained on whatever passes.</div>
+
+<h2>Why not a bigger model?</h2>
+<p>The earlier team tried them on the same kind of data: MiniRocket (a fast deep time-series method) reached
+0.72 on a new person, a reservoir network 0.66 with 200-300 false alarms per hour. Those stay as baselines to beat
+on the same test splits. Our bet (H5) is that a few physics features in a head frame transfer to new people and
+new devices better, and they are explainable.</p>
+
+<figure><img src="assets/2_examples_p01.png" alt="Example head-frame rotation traces of P01's eight motions."><figcaption>Real examples from P01 in the head frame, one per motion: each family lights up its own axis; direction is the sign of the first swing.</figcaption></figure>
+</main>
+<script src="site.js"></script>
+</body>
+</html>

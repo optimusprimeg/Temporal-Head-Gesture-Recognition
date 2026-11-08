@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Covert Head Commands</title>
+<meta name="description" content="How a team member sends silent commands with small head motions picked up by AirPods: the idea, the data collection, the features and the evidence so far.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<div class="eyebrow">CS724 · IIT Kanpur · Group 6</div>
+<h1>Silent commands from small head motions, read by AirPods</h1>
+<p class="lede">A team member nods, tilts or turns their head in a short two-step pattern. The AirPods' motion
+sensor picks it up, the phone or Mac recognises the command, and teammates hear it, for example
+<b>"Alpha 2: enemy left"</b>, without anyone speaking or raising a hand.</p>
+
+<div class="grid">
+  <div class="stat"><div class="v">8</div><div class="l">single head motions</div><div class="s">nod down, look up, tilt L/R, turn L/R, circle cw/ccw</div></div>
+  <div class="stat"><div class="v">20</div><div class="l">commands, each = 2 motions</div><div class="s">8 motions allow 56 ordered pairs; the 20 are chosen after the pilot</div></div>
+  <div class="stat"><div class="v">21/21</div><div class="l">new device, new person</div><div class="s">trained only on 30 EarSet people, tested on our AirPods (P01), axis features</div></div>
+  <div class="stat"><div class="v">0.61 → ?</div><div class="l">the old pipeline on a new person</div><div class="s">random forest on 96 features; our pilot gives the new number</div></div>
+</div>
+
+<h2>The idea in one picture</h2>
+<p>Everything runs on the device, in real time, on a continuous stream. Nobody tells the system when a gesture
+starts: it has to find the motions itself.</p>
+<svg class="diagram" viewBox="0 0 1020 250" role="img" aria-labelledby="pt pd">
+  <title id="pt">Recognition pipeline</title>
+  <desc id="pd">AirPods motion at 50 samples per second goes to a detector that finds motions, then a head frame, features, a decision (rules or model), a gate, and a pair decoder that turns two motions into a command sent to the team.</desc>
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color: var(--muted)"/></marker></defs>
+  <g font-size="14">
+    <rect class="box" x="6" y="40" width="130" height="70" rx="10"/><text x="71" y="70" text-anchor="middle" font-weight="600">AirPods</text><text class="sub" x="71" y="90" text-anchor="middle">rotation, accel, gravity</text>
+    <rect class="box" x="166" y="40" width="130" height="70" rx="10"/><text x="231" y="70" text-anchor="middle" font-weight="600">Detector</text><text class="sub" x="231" y="90" text-anchor="middle">where is a motion?</text>
+    <rect class="box" x="326" y="40" width="130" height="70" rx="10"/><text x="391" y="70" text-anchor="middle" font-weight="600">Head frame</text><text class="sub" x="391" y="90" text-anchor="middle">earbud → head axes</text>
+    <rect class="box" x="486" y="40" width="130" height="70" rx="10"/><text x="551" y="70" text-anchor="middle" font-weight="600">Features</text><text class="sub" x="551" y="90" text-anchor="middle">a few numbers</text>
+    <rect class="box hi" x="646" y="40" width="130" height="70" rx="10"/><text x="711" y="70" text-anchor="middle" font-weight="600">Which motion</text><text class="sub" x="711" y="90" text-anchor="middle">rules or model + gate</text>
+    <rect class="box hi" x="806" y="40" width="200" height="70" rx="10"/><text x="906" y="70" text-anchor="middle" font-weight="600">Pair decoder</text><text class="sub" x="906" y="90" text-anchor="middle">2 motions in 1.5 s → command</text>
+    <path class="arrow" d="M136 75 H162"/><path class="arrow" d="M296 75 H322"/><path class="arrow" d="M456 75 H482"/><path class="arrow" d="M616 75 H642"/><path class="arrow" d="M776 75 H802"/>
+    <text class="sub" x="71" y="135" text-anchor="middle">50 samples / s</text>
+    <text class="sub" x="231" y="135" text-anchor="middle">own still level</text>
+    <text class="sub" x="391" y="135" text-anchor="middle">gravity + 3 nods</text>
+    <text class="sub" x="551" y="135" text-anchor="middle">chosen by R</text>
+    <text class="sub" x="711" y="135" text-anchor="middle">family + direction</text>
+    <rect class="box" x="806" y="170" width="200" height="60" rx="10"/><text x="906" y="197" text-anchor="middle" font-weight="600">Team hub</text><text class="sub" x="906" y="216" text-anchor="middle">"Alpha 2: enemy left"</text>
+    <path class="arrow" d="M906 110 V166"/>
+  </g>
+</svg>
+
+<h2>Why it is built this way</h2>
+<div class="grid">
+  <div class="card"><h3>Two motions, not one</h3><p>People nod and turn all day. One motion alone is never a
+  command, so a single everyday movement cannot send one. Commands are built from a few parts, so new commands
+  need no new training data. <a href="commands.html">Commands →</a></p></div>
+  <div class="card"><h3>Head frame</h3><p>Every earbud sits at a different angle in every ear. We rotate the
+  signal into the head's own axes (nod, tilt, turn) using gravity and three calibration nods, so the same motion
+  looks the same for everyone. <a href="features.html">Features →</a></p></div>
+  <div class="card"><h3>Features chosen by statistics</h3><p>Instead of 96 hand-picked statistics, a mixed model
+  in R measures how much of each feature is "the gesture" and how much is "the person". Only gesture-driven
+  features are trusted across people. <a href="features.html#r">R analysis →</a></p></div>
+  <div class="card"><h3>Data from a real session</h3><p>A Mac app records continuous sessions with spoken cues,
+  no-gesture time, walking, re-wearing and two AirPods models, fitted into whatever time a participant has.
+  <a href="collection.html">Data collection →</a></p></div>
+</div>
+
+<h2>Where it stands (8 Nov 2026)</h2>
+<div class="table-wrap"><table>
+<tr><th>Piece</th><th>State</th><th>Evidence</th></tr>
+<tr><td>Detector, head frame, features, decoder</td><td><span class="tag ok">built</span></td><td>Python (gesturekit) + the same logic in Swift, checked equal in the GitHub build</td></tr>
+<tr><td>Single motions, other people</td><td><span class="tag part">partly shown</span></td><td>EarSet, 30 people: 0.96 of head gestures recognised; only nod/turn/tilt, no direction labels</td></tr>
+<tr><td>Single motions, our AirPods</td><td><span class="tag part">one person</span></td><td>P01: 28/29 detected; every left/right pair separated by one sign</td></tr>
+<tr><td>Two-motion commands</td><td><span class="tag part">offline only</span></td><td>About 9 in 10 right with a pause of 0.5 s or more; without a pause the two motions merge</td></tr>
+<tr><td>Data-collection app</td><td><span class="tag ok">v2.2 built</span></td><td>Gesture Collector, with a live recogniser (Rules / Model switch)</td></tr>
+<tr><td>Pilot (5 people × 2 devices)</td><td><span class="tag no">not run</span></td><td>Next step; it decides the final 20 commands</td></tr>
+<tr><td>Team hub (central platform)</td><td><span class="tag no">not built</span></td><td>Planned for the demo</td></tr>
+<tr><td>Independent review (8 Nov)</td><td><span class="tag part">4 high issues</span></td><td>loop feature depends on length; only axis shares are R-backed; P01 numbers in-sample; core order fixed. See <a href="status.html">Status</a></td></tr>
+</table></div>
+<p>The honest summary: the pieces work on existing data and on one person. Whether commands work on new people,
+while walking, and in normal conversation is exactly what the pilot measures. <a href="status.html">Status and
+independent checks →</a></p>
+
+<h2>How to read this site</h2>
+<ol class="steps">
+  <li><a href="commands.html">Commands</a>: what a command is and why it is made of two motions.</li>
+  <li><a href="collection.html">Data collection</a>: what one session records and why.</li>
+  <li><a href="features.html">Features and R</a>: how a motion becomes a few numbers, and how statistics chose them.</li>
+  <li><a href="reality.html">Real world</a>: how a team would use it, what can go wrong, and how each problem is handled.</li>
+  <li><a href="status.html">Status and checks</a>: results so far, an independent review, and the open problems.</li>
+</ol>
+</main>
+<script src="site.js"></script>
+</body>
+</html>

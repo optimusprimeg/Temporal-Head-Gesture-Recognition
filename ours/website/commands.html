@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two-Motion Commands</title>
+<meta name="description" content="What a command is (two head motions in a row), why, how it is recognised, and what the tests so far show.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<div class="eyebrow">The command idea</div>
+<h1>A command is two head motions in a row</h1>
+<p class="lede">We train the system on only 8 simple head motions. A command is an ordered pair of two different
+motions, the second starting within 1.5 seconds after the first ends. "Tilt left, then nod down" means
+<b>GO FORWARD</b>.</p>
+
+<h2>The 8 single motions</h2>
+<p>Each motion is one smooth go-and-return: out, and straight back to the front, without holding.</p>
+<div class="motions">
+  <div class="motion"><span class="dot" style="background:var(--nod)"></span><b>Nod down</b>chin down, back up</div>
+  <div class="motion"><span class="dot" style="background:var(--nod)"></span><b>Look up</b>chin up, back down</div>
+  <div class="motion"><span class="dot" style="background:var(--tilt)"></span><b>Tilt left</b>left ear to shoulder, back</div>
+  <div class="motion"><span class="dot" style="background:var(--tilt)"></span><b>Tilt right</b>right ear to shoulder, back</div>
+  <div class="motion"><span class="dot" style="background:var(--turn)"></span><b>Turn left</b>look left, back</div>
+  <div class="motion"><span class="dot" style="background:var(--turn)"></span><b>Turn right</b>look right, back</div>
+  <div class="motion"><span class="dot" style="background:var(--circle)"></span><b>Circle clockwise</b>nose draws 12-3-6-9-12</div>
+  <div class="motion"><span class="dot" style="background:var(--circle)"></span><b>Circle counter-clockwise</b>nose draws 12-9-6-3-12</div>
+</div>
+<p>They come in four families, one per way the head can move: <span style="color:var(--nod)">nod</span> (about
+the ear-to-ear axis), <span style="color:var(--tilt)">tilt</span> (about the nose axis),
+<span style="color:var(--turn)">turn</span> (about the vertical axis) and <span style="color:var(--circle)">circle</span>
+(all three, in a loop). Inside a family, the two motions differ only in <b>direction</b>, which the recogniser
+reads from the sign of the first swing (or the loop direction for circles).</p>
+
+<h2>Why two motions instead of one</h2>
+<div class="grid">
+  <div class="card"><h3>Everyday motion is not a command</h3><p>People nod while listening and turn to look
+  around. A single motion is never enough: it is dropped after 1.5 s if no second one follows, so one stray
+  movement cannot send a command. Two motions in a valid order within 1.5 s are much rarer by accident.</p></div>
+  <div class="card"><h3>Many commands from few parts</h3><p>8 motions give 8 × 7 = 56 ordered pairs. Adding a
+  command means editing a list, not collecting new training data. A single-gesture design (the earlier version of
+  this project) needs new data and retraining for each new command.</p></div>
+  <div class="card"><h3>Learnable and private</h3><p>Each part is a natural motion that looks ordinary to an
+  observer. The dictionary (which pair means what) is private to the team, like a call sign, and can change
+  without retraining.</p></div>
+</div>
+
+<h2>The 20 commands (placeholder)</h2>
+<p>This list is a starting point. After the pilot we keep the 20 pairs that everyday movement produces least
+often (measured on the no-gesture recordings), which cuts false commands. The list lives in the app's
+<code>plan.json</code>, so it can change without rebuilding the app.</p>
+<div class="table-wrap"><table>
+<tr><th>Command</th><th>First</th><th>Then</th><th>Command</th><th>First</th><th>Then</th></tr>
+<tr><td>GO FORWARD</td><td>tilt left</td><td>nod down</td><td>ACK</td><td>look up</td><td>nod down</td></tr>
+<tr><td>FALL BACK</td><td>tilt right</td><td>nod down</td><td>YES</td><td>look up</td><td>tilt left</td></tr>
+<tr><td>HOLD POSITION</td><td>tilt left</td><td>tilt right</td><td>NO</td><td>look up</td><td>tilt right</td></tr>
+<tr><td>MOVE</td><td>tilt right</td><td>tilt left</td><td>MOVE LEFT</td><td>circle cw</td><td>tilt left</td></tr>
+<tr><td>NEED BACKUP</td><td>circle cw</td><td>nod down</td><td>MOVE RIGHT</td><td>circle cw</td><td>tilt right</td></tr>
+<tr><td>ABORT</td><td>circle ccw</td><td>nod down</td><td>WAIT</td><td>turn left</td><td>look up</td></tr>
+<tr><td>ENEMY LEFT</td><td>turn left</td><td>nod down</td><td>READY</td><td>turn right</td><td>look up</td></tr>
+<tr><td>ENEMY RIGHT</td><td>turn right</td><td>nod down</td><td>REGROUP</td><td>nod down</td><td>circle cw</td></tr>
+<tr><td>STOP</td><td>tilt left</td><td>circle ccw</td><td>COVER ME</td><td>nod down</td><td>circle ccw</td></tr>
+<tr><td>CLEAR</td><td>tilt right</td><td>circle cw</td><td>REPEAT</td><td>look up</td><td>circle ccw</td></tr>
+</table></div>
+
+<h2>How a command is recognised</h2>
+<ol class="steps">
+  <li><b>The detector finds a motion.</b> It watches how much the head rotates compared with the person's own
+  still level. A motion starts when rotation stays above 4 × that level for 0.06 s and ends after 0.4 s back near
+  stillness. Motions can last 0.3 to 4 s: nothing assumes a fixed length.</li>
+  <li><b>The motion is named.</b> Which axis carried most of the rotation gives the family; the sign of the first
+  swing gives the direction (details on <a href="features.html">Features</a>).</li>
+  <li><b>The gate.</b> In Model mode, a motion counts only if the model is at least 50 % sure and clearly prefers it
+  over the runner-up; "not a gesture" is one of the model's answers.</li>
+  <li><b>The pair decoder.</b> The first accepted motion waits. If a second one starts within 1.5 s of its end and
+  the pair is in the dictionary, the command is sent. Otherwise the first is dropped (and the second may start a
+  new command). The same motion twice is never a command, because nod-nod is what people do when they agree.</li>
+</ol>
+
+<h2>What the tests show: the pause matters</h2>
+<p>We ran the exact chain of the app on real data (<code>algorithm/scripts/pair_reliability.py</code>,
+results in <code>algorithm/results/pair_reliability.md</code>).</p>
+<div class="table-wrap"><table>
+<tr><th>Pause between the two motions</th><th class="num">0.1 s</th><th class="num">0.3 s</th><th class="num">0.5 s</th><th class="num">0.8 s</th><th class="num">1.2 s</th></tr>
+<tr><td>Commands right, Rules mode</td><td class="num">0.32</td><td class="num">0.78</td><td class="num"><b>0.90</b></td><td class="num">0.95</td><td class="num">0.90</td></tr>
+<tr><td>Commands right, Model mode</td><td class="num">0.23</td><td class="num">0.77</td><td class="num">0.87</td><td class="num">0.88</td><td class="num">0.87</td></tr>
+</table></div>
+<p>All 20 commands, built from P01's real recorded motions joined with a pause of the given length (3 versions
+each). The commands that still fail with a pause all contain a circle.</p>
+<div class="note warn"><b>Why the pause:</b> the detector ends a motion only after 0.4 s of near-stillness.
+Two motions done back to back without that stillness merge into one long event and the command is lost. On real
+fast doubles from 4 earlier participants (tilt-tilt, nod-nod), <b>84-89 % merged</b>. The instruction for now is
+therefore: <i>first motion, back to the front, a short still pause, then the second motion</i>.</div>
+
+<h3>Making the pause optional: cut where the axis changes</h3>
+<p>In a cross pair such as tilt-then-nod, the axis carrying the rotation switches half-way: first tilt, then nod.
+A merged event can be cut at that switch. A double tilt has no switch, so it cannot be rescued that way, which is
+another reason the dictionary avoids same-motion and same-family pairs where possible.</p>
+<svg class="diagram" viewBox="0 0 1000 170" role="img" aria-labelledby="ct cd">
+  <title id="ct">Axis change inside a merged cross pair</title>
+  <desc id="cd">A merged tilt-then-nod event: the first part is dominated by the tilt axis and the second by the nod axis, so it can be cut where the dominant axis changes. A double tilt stays on the tilt axis throughout.</desc>
+  <text x="0" y="22" font-size="14" font-weight="600">Tilt left → nod down, merged into one event</text>
+  <rect x="0" y="34" width="430" height="34" rx="6" fill="var(--tilt)" opacity="0.85"/>
+  <rect x="436" y="34" width="420" height="34" rx="6" fill="var(--nod)" opacity="0.85"/>
+  <line x1="433" y1="28" x2="433" y2="76" stroke="var(--ink)" stroke-width="2" stroke-dasharray="4 3"/>
+  <text x="440" y="92" font-size="12.5" class="sub">axis changes: cut here</text>
+  <text x="0" y="122" font-size="14" font-weight="600">Tilt left, twice (a double)</text>
+  <rect x="0" y="132" width="856" height="34" rx="6" fill="var(--tilt)" opacity="0.85"/>
+  <text x="866" y="56" font-size="13" class="sub">2 parts</text>
+  <text x="866" y="154" font-size="13" class="sub">no cut point</text>
+</svg>
+<p>The real recordings behind this picture were shown in the project discussion (P01's motions; an earlier
+participant's double tilt). The cut rule is designed but not yet built or tested.</p>
+
+<h3>The pairs that stay hard</h3>
+<p>Pairs inside one family (tilt left → tilt right = HOLD POSITION / MOVE; look up → nod down = ACK) stay on one
+axis; only the direction flips. Those need the pause, or they are replaced when the final 20 are chosen.</p>
+
+<h2>Open questions about commands</h2>
+<ul>
+  <li>Real recorded cross pairs do not exist yet: the pilot's command blocks and a self-test with the live
+  recogniser provide them.</li>
+  <li>Command accuracy on new people (the pilot measures it on 5 people, then 20).</li>
+  <li>How often everyday movement produces each pair, which decides the final 20.</li>
+  <li>Circles: the weakest motion so far. If the pilot confirms it, the 6 one-axis motions still give 30 pairs.</li>
+</ul>
+</main>
+<script src="site.js"></script>
+</body>
+</html>

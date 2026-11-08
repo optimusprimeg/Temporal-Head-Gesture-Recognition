@@ -1,0 +1,16 @@
+# Recordings and participant data never go into this public repository
+ours/data/
+prior_work/
+*.csv
+!ours/algorithm/results/*.csv
+# local tools and builds
+.claude/
+__pycache__/
+*.pyc
+.venv/
+.env
+*.joblib
+*.pkl
+ours/mac_app/AirPodsCheck.zip
+# group paper drafts (teammates' writing): add to git only when the group agrees
+paper/
