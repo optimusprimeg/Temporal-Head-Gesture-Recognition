@@ -7,6 +7,11 @@ records continuously, and resumes after a crash.
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
 
+## New in v3.2: the name is the go
+Text and voice start together and the motion window opens right away (people moved on the name anyway). A green
+**NOW** bar fills for the window (planned window + speech time) and one short beep marks its end; there is no beep
+before. In `cues.csv`, `sensor_ns_est` = `shown_sensor_ns` = the announcement and `window_s` = the whole window.
+
 ## New in v3.1: any session length, trial checks, Forest mode (one rebuild, then files only)
 - **Any length:** the start screen has 10 / 20 / 40 min buttons. Rounds hold every motion once, so the planner
   cuts whole rounds (a rounds block's `minRounds` in the experiment file) and every motion keeps the same count.

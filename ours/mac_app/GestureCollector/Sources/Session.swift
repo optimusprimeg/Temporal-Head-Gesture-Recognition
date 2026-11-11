@@ -11,8 +11,8 @@
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "3.1.0"
-let PROTOCOL_VERSION = "v3.1-2026-11"   // v3: experiment files (Plan.swift); v3.1: trial checks + retake
+let APP_VERSION = "3.2.0"
+let PROTOCOL_VERSION = "v3.2-2026-11"   // v3: experiment files; v3.1: trial checks + retake; v3.2: the name is the go
 // v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
 // labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
 // v3.1 adds: flags (count/too_small/posture_jump/mismatch/unsure, ';'-joined), the three check answers, their vote,
@@ -123,6 +123,8 @@ final class SessionRunner: ObservableObject {
     @Published var sub = ""
     @Published var motion = ""          // motion being cued (for the head animation)
     @Published var countdown = 0.0
+    @Published var nowActive = false      // v3.2: the motion window is open (green NOW bar)
+    @Published var windowS = 0.0
     @Published var progress = 0.0
     @Published var remainingS = 0.0
     @Published var banner = ""           // warnings (earbud switch, gap)
@@ -431,20 +433,31 @@ final class SessionRunner: ObservableObject {
             await speaker.say(st.text.lowercased())
             await waitForButton(.waitingContinue)
         case .cue:
-            // v2.1 flow: show + speak the motion (= announced, logged), short pause, GO beep, window, then the
-            // one-motion check. No separate ready beep: people move on the name anyway (P01: 61 % before GO).
+            // v3.2 flow (option A): the name IS the go. Text + voice start together and the window opens at once
+            // (people moved on the name anyway: P01 61 % before the old GO beep). The window is the planned window
+            // plus the speech time; a green NOW bar shows it; one short beep marks its end. No beep before.
+            // cues.csv: sensor_ns_est = shown_sensor_ns = the announcement; window_s = the whole window.
+            var st = st
+            st.windowS += st.spoken.isEmpty ? 0 : timing.speechS
             motion = motions[st.motion]?.demo ?? st.motion
             feedback = ""
             let shown = sensorNowNs()
             let stillCalib = st.cueKind == "calibration" && st.motion == "still"
-            if !st.spoken.isEmpty { await speaker.say(st.spoken) }
-            if st.readyS > 0 { await wait(0.25) }
-            if skipFlag { logCue(st, hostNs: hostNowNs(), sensorNs: sensorNowNs(), status: "skipped", shownNs: shown); return }
-            let h = hostNowNs(), t = sensorNowNs()
+            if skipFlag { logCue(st, hostNs: hostNowNs(), sensorNs: shown, status: "skipped", shownNs: shown); return }
+            let h = hostNowNs(), t = shown
             if stillCalib { recorder.live.beginQuietCapture(); if st.module != "closing" { recorder.engine.beginStill() } }
             let anglesAtGo = recorder.angles
-            Beep.go()
+            if st.spoken.isEmpty {
+                Beep.go()                                  // nothing to say (e.g. second motion of a pair): beep
+            } else {
+                let sp = speaker, text = st.spoken
+                Task { @MainActor in await sp.say(text) }  // speak while the window already runs
+            }
+            windowS = st.windowS
+            nowActive = true
             await wait(st.windowS)
+            nowActive = false
+            if !skipFlag && !(st.cueKind == "pairs" && st.step == 1) { Beep.end() }   // a pair's 2nd beep follows at once
             if stillCalib && !recorder.live.endQuietCapture() { note("live check: still pose too short, default quiet level") }
             if stillCalib && st.module != "closing" && !recorder.engine.endStill() { note("trial checks: still pose too short") }
             var verdict: LiveVerdict? = nil
@@ -485,7 +498,6 @@ final class SessionRunner: ObservableObject {
             }
             logCue(st, hostNs: h, sensorNs: t, status: skipFlag ? "skipped" : (switchDuringStep ? "disturbed" : "done"),
                    shownNs: shown, live: verdict, check: check, vote: vote)
-            if st.cueKind == "calibration" && st.motion == "look_left_right" { Beep.end() }
             await wait(max(0, st.gapAfterS - (verdict == nil ? 0 : 0.5)))
         case .activity:
             await speaker.say(st.spoken)

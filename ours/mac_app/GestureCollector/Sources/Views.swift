@@ -286,7 +286,15 @@ struct RunView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(runner.title).font(.system(size: Platform.isPhone ? 26 : 34, weight: .bold)).fixedSize(horizontal: false, vertical: true)
                     Text(runner.sub).font(.title3).fixedSize(horizontal: false, vertical: true)
-                    if runner.countdown > 0 { Text(String(format: "%.1f s", runner.countdown)).font(.title2).monospacedDigit() }
+                    if runner.nowActive {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("NOW").font(.title.bold()).foregroundColor(.green)
+                            ProgressView(value: max(0, min(1, 1 - runner.countdown / max(runner.windowS, 0.1))))
+                                .tint(.green).scaleEffect(x: 1, y: 3)
+                        }.frame(maxWidth: 320)
+                    } else if runner.countdown > 0 {
+                        Text(String(format: "%.1f s", runner.countdown)).font(.title2).monospacedDigit()
+                    }
                     if !runner.feedback.isEmpty {
                         Text(runner.feedback).font(.title2.bold())
                             .foregroundColor(runner.feedbackOK ? .green : .orange)
