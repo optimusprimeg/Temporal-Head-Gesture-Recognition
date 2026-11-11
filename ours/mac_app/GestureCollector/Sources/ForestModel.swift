@@ -47,8 +47,12 @@ struct ForestModel: Codable {
 
     static func load(dataRoot: URL) -> (ForestModel?, String) {
         let user = dataRoot.appendingPathComponent("forest_model.json")
-        let (url, whereFrom): (URL?, String) = FileManager.default.fileExists(atPath: user.path)
-            ? (user, "data folder") : (Bundle.main.url(forResource: "forest_model", withExtension: "json"), "built in")
+        var url: URL? = Bundle.main.url(forResource: "forest_model", withExtension: "json")
+        var whereFrom = "built in"
+        if FileManager.default.fileExists(atPath: user.path) {
+            url = user
+            whereFrom = "data folder"
+        }
         guard let u = url, let d = try? Data(contentsOf: u) else {
             return (nil, "Forest: no forest_model.json (data folder or built in)")
         }
@@ -166,7 +170,7 @@ final class ForestEngine {
         }
         lock.unlock()
         guard let ev = finished else { return }
-        let x = Receiver96.features(ev.map(\.1), crop: m.crop)
+        let x = Receiver96.features(ev.map { $0.1 }, crop: m.crop)
         let pr = m.probabilities(x)
         let top = pr.indices.max { pr[$0] < pr[$1] } ?? 0
         let label = top < m.classes.count ? m.classes[top] : "?"

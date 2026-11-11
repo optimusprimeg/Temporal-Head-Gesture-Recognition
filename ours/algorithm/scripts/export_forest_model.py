@@ -146,8 +146,11 @@ model = {"version": f"forest-rcv96-{pd.Timestamp.now():%Y%m%d}", "feature_set": 
 
 # parity: 25 windows, raw 12-channel rows + expected features + probabilities
 idx = RNG.choice(len(raw), size=min(25, len(raw)), replace=False)
-cases = [{"rows": raw[i].round(9).tolist(), "features": X[i].tolist(),
-          "proba": m.predict_proba(X[i:i + 1])[0].tolist()} for i in idx]
+cases = []
+for i in idx:                       # features from exactly the (rounded) rows the Swift test reads
+    rows = raw[i].round(9)
+    f = clean([receiver_96(pd.DataFrame(rows, columns=RCV))])
+    cases.append({"rows": rows.tolist(), "features": f[0].tolist(), "proba": m.predict_proba(f)[0].tolist()})
 (APP / "Tests" / "forest_parity.json").write_text(json.dumps({"cases": cases}), encoding="utf-8")
 
 L = ["# Forest live model (app 'Forest' mode)", "",
