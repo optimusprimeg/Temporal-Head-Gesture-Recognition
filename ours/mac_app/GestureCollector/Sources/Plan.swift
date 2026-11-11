@@ -19,14 +19,26 @@ struct MotionDef: Codable, Hashable {
     var id: String
     var instruction: String   // shown on screen
     var spoken: String        // spoken through the AirPods before the beep
+    // v3.1 (all optional in the file)
+    var expect: Int? = nil    // motions the detector should see (1 = single, 2 = double); nil = 1; 0 = not checked
+    var group: String? = nil  // head / face / touch / breath / other. Only "head" singles get the rule check.
+    var demo: String? = nil   // built-in head animation to show (a motions8 id); nil = id itself
 
-    init(id: String, instruction: String, spoken: String) { self.id = id; self.instruction = instruction; self.spoken = spoken }
+    init(id: String, instruction: String, spoken: String, expect: Int? = nil, group: String? = nil, demo: String? = nil) {
+        self.id = id; self.instruction = instruction; self.spoken = spoken
+        self.expect = expect; self.group = group; self.demo = demo
+    }
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         instruction = try c.decodeIfPresent(String.self, forKey: .instruction) ?? id.replacingOccurrences(of: "_", with: " ").uppercased()
         spoken = try c.decodeIfPresent(String.self, forKey: .spoken) ?? id.replacingOccurrences(of: "_", with: " ")
+        expect = try c.decodeIfPresent(Int.self, forKey: .expect)
+        group = try c.decodeIfPresent(String.self, forKey: .group)
+        demo = try c.decodeIfPresent(String.self, forKey: .demo)
     }
+    var expectedCount: Int { expect ?? 1 }
+    var isHead: Bool { (group ?? "head") == "head" }
 }
 
 struct CommandDef: Codable, Hashable {
@@ -58,6 +70,7 @@ struct BlockDef: Codable, Hashable {
     var motions: [String]? = nil    // nil = all motions of the plan
     var text: String? = nil         // free / message: instructions; rounds / commands: replaces the default instructions
     var estimateS: Double? = nil    // free: expected duration (time planning only)
+    var minRounds: Int? = nil       // rounds: may be cut down to this many when the time is short (nil = never cut)
 
     init(id: String, kind: BlockKind, title: String, condition: String = "sitting", rounds: Int = 0, n: Int = 0,
          lists: Int = 0, gaps: [Double] = [], pairsPerGap: Int = 0, activities: [Activity] = [],
@@ -82,6 +95,7 @@ struct BlockDef: Codable, Hashable {
         motions = try c.decodeIfPresent([String].self, forKey: .motions)
         text = try c.decodeIfPresent(String.self, forKey: .text)
         estimateS = try c.decodeIfPresent(Double.self, forKey: .estimateS)
+        minRounds = try c.decodeIfPresent(Int.self, forKey: .minRounds)
     }
 }
 
@@ -114,6 +128,10 @@ struct Timing: Codable, Hashable {
     var idlePerRound: Int = 2
     var breakEveryRounds: Int = 5
     var speechS: Double = 1.3         // estimated length of a spoken cue (for time planning only)
+    // v3.1 trial checks
+    var retakeOnce: Bool = true       // a trial that fails the check is repeated once, right away
+    var smallPeakRot: Double = 0.15   // rad/s: a head motion below this peak is flagged "too_small" (flag only)
+    var postureJumpDeg: Double = 25   // head pitch/roll change since the previous cue above this: flag "posture_jump"
 
     init() {}
     init(from d: Decoder) throws {
@@ -127,6 +145,9 @@ struct Timing: Codable, Hashable {
         idlePerRound = try c.decodeIfPresent(Int.self, forKey: .idlePerRound) ?? t.idlePerRound
         breakEveryRounds = try c.decodeIfPresent(Int.self, forKey: .breakEveryRounds) ?? t.breakEveryRounds
         speechS = try c.decodeIfPresent(Double.self, forKey: .speechS) ?? t.speechS
+        retakeOnce = try c.decodeIfPresent(Bool.self, forKey: .retakeOnce) ?? t.retakeOnce
+        smallPeakRot = try c.decodeIfPresent(Double.self, forKey: .smallPeakRot) ?? t.smallPeakRot
+        postureJumpDeg = try c.decodeIfPresent(Double.self, forKey: .postureJumpDeg) ?? t.postureJumpDeg
     }
 }
 
@@ -183,6 +204,7 @@ struct StudyPlan: Codable, Hashable {
         let motionIDs = Set(motions.map(\.id))
         if motions.isEmpty { e.append("no motions") }
         if motionIDs.count != motions.count { e.append("two motions have the same id") }
+        for m in motions where (m.expect ?? 1) < 0 || (m.expect ?? 1) > 4 { e.append("motion \(m.id): expect must be 0...4") }
         for c in commands {
             if !motionIDs.contains(c.first) { e.append("command \(c.message): unknown motion '\(c.first)'") }
             if !motionIDs.contains(c.then) { e.append("command \(c.message): unknown motion '\(c.then)'") }
@@ -196,6 +218,7 @@ struct StudyPlan: Codable, Hashable {
             for m in b.motions ?? [] where !motionIDs.contains(m) { e.append("block \(b.id): unknown motion '\(m)'") }
             switch b.kind {
             case .rounds: if b.rounds < 1 { e.append("block \(b.id): rounds must be at least 1") }
+                if let m = b.minRounds, m < 1 || m > b.rounds { e.append("block \(b.id): minRounds must be 1...rounds") }
             case .commands, .selfPaced:
                 if commands.isEmpty { e.append("block \(b.id): the file has no commands") }
                 if b.n < 1 { e.append("block \(b.id): n must be at least 1") }

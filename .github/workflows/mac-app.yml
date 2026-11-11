@@ -43,6 +43,11 @@ jobs:
           cd ours/mac_app/GestureCollector
           swiftc -O Sources/LiveRecognizer.swift Tests/main.swift -o /tmp/parity
           /tmp/parity Tests/parity.json
+      - name: Forest mode matches Python (receiver-96 features + exported random forest)
+        run: |
+          cd ours/mac_app/GestureCollector
+          swiftc -O Sources/ForestModel.swift Tests/forest_main.swift -o /tmp/forest_parity
+          /tmp/forest_parity forest_model.json Tests/forest_parity.json
       - name: Build universal Gesture Collector app
         run: UNIVERSAL=1 bash ours/mac_app/GestureCollector/build.sh
       - name: Check the app

@@ -227,7 +227,7 @@ struct LiveModel: Codable {
     }
 }
 
-enum RecognizerMode: String, CaseIterable, Codable { case rules = "Rules", model = "Model" }
+enum RecognizerMode: String, CaseIterable, Codable { case rules = "Rules", model = "Model", forest = "Forest" }
 
 struct Decision {
     var kind: String

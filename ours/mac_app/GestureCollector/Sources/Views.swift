@@ -153,12 +153,18 @@ struct StartView: View {
                             }.frame(maxWidth: 360)
                             Text("Suggested for \(p.code) by the crossover order. If you only have one model, choose the one you are wearing (it is logged).")
                                 .font(.caption).foregroundColor(.secondary)
-                            HStack {
+                            AdaptiveStack {
                                 Text("Time available:")
-                                Stepper(value: $model.budgetMin, in: 15...120, step: 5) {
+                                ForEach([10.0, 20.0, 40.0], id: \.self) { m in
+                                    Button("\(Int(m)) min") { model.budgetMin = m }
+                                        .buttonStyle(.bordered).tint(model.budgetMin == m ? .accentColor : .gray)
+                                }
+                                Stepper(value: $model.budgetMin, in: 10...120, step: 5) {
                                     Text("\(Int(model.budgetMin)) min")
                                 }
                             }
+                            Text("Short on time? Rounds hold every motion once, so the plan cuts whole rounds and every motion keeps the same count. 'End after this round' stops cleanly at any time.")
+                                .font(.caption).foregroundColor(.secondary)
                             Button("Next: check the AirPods") { model.screen = .check }
                         }
                     }.padding(6)
@@ -310,6 +316,9 @@ struct RunView: View {
                     Button(runner.phase == .paused ? "Resume" : "Pause after this step") { runner.togglePause() }
                     Button("Skip this step") { runner.skip() }
                     Button("Calibrate again") { runner.requestRecalibration() }
+                    Button(runner.endAfterRound ? "Will end after this round (undo)" : "End after this round") { runner.toggleEndAfterRound() }
+                    Button("Can't do this motion") { runner.cantDoCurrent() }
+                        .disabled(runner.phase != .running || runner.motion.isEmpty)
                     TextField("note", text: $noteText).frame(maxWidth: 220)
                     Button("Add note") { runner.note("note: " + noteText); noteText = "" }.disabled(noteText.isEmpty)
                     Spacer()

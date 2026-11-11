@@ -2,7 +2,7 @@
 (function () {
   const pages = [
     ["index.html", "Overview"], ["commands.html", "Commands"], ["collection.html", "Data collection"],
-    ["features.html", "Features + R"], ["reality.html", "Real world"], ["status.html", "Status + checks"],
+    ["features.html", "Features + R"], ["earset.html", "EarSet data"],["reality.html", "Real world"], ["status.html", "Status + checks"],
   ];
   const here = location.pathname.split("/").pop() || "index.html";
   try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}

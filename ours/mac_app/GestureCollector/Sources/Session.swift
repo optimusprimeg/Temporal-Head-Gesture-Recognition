@@ -11,11 +11,13 @@
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "3.0.0"
-let PROTOCOL_VERSION = "v3-2026-11"   // v3: experiment files (Plan.swift)
+let APP_VERSION = "3.1.0"
+let PROTOCOL_VERSION = "v3.1-2026-11"   // v3: experiment files (Plan.swift); v3.1: trial checks + retake
 // v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
 // labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
-let CUE_HEADER = "host_ns,sensor_ns_est,block,kind,round,trial,step,motion,condition,window_s,note,module,attempt,status,shown_sensor_ns,live_events,live_verdict\n"
+// v3.1 adds: flags (count/too_small/posture_jump/mismatch/unsure, ';'-joined), the three check answers, their vote,
+// the event's peak rotation (rad/s). Older columns are unchanged.
+let CUE_HEADER = "host_ns,sensor_ns_est,block,kind,round,trial,step,motion,condition,window_s,note,module,attempt,status,shown_sensor_ns,live_events,live_verdict,flags,check_rule,check_model,check_dtw,check_vote,peak_rot\n"
 
 struct SessionMeta: Codable {
     var participant: String        // "P05"
@@ -58,6 +60,7 @@ struct SessionState: Codable {
     var index: Int                 // next step to run
     var trial: Int                 // running trial counter (cue log)
     var attempts: [String: Int]    // "block|round|step|motion" -> attempts so far
+    var cantDo: [String]? = nil    // v3.1: motions this person cannot do (skipped from then on, logged "cant_do")
 }
 
 @MainActor
@@ -125,12 +128,20 @@ final class SessionRunner: ObservableObject {
     @Published var banner = ""           // warnings (earbud switch, gap)
     @Published var feedback = ""         // result of the one-motion check for the last trial
     @Published var feedbackOK = true
+    @Published var endAfterRound = false  // v3.1: stop cleanly when the current round is finished
     @Published private(set) var state: SessionState?
 
     let folder: URL
     let recorder: Recorder
     let timing: Timing
+    let motions: [String: MotionDef]      // v3.1: motion definitions of the experiment (expected count, group, demo)
     private let speaker = Speaker()
+    // v3.1 trial checks
+    private var liveModel: LiveModel?
+    private var results: [LiveResult] = []
+    private var templates = TemplateStore()
+    private var lastAngles: HeadAngles?
+    private var retakeNext = false
     private var cueFile: FileHandle?
     private var noteFile: FileHandle?
     private var task: Task<Void, Never>?
@@ -143,16 +154,23 @@ final class SessionRunner: ObservableObject {
     var onModuleDone: ((SessionMeta, String) -> Void)?   // (meta, module id or core block id)
     var onFinished: ((SessionMeta) -> Void)?
 
-    init(folder: URL, state: SessionState, recorder: Recorder, timing: Timing) {
+    init(folder: URL, state: SessionState, recorder: Recorder, timing: Timing, motions: [MotionDef] = []) {
         self.folder = folder
         self.state = state
         self.recorder = recorder
         self.timing = timing
+        self.motions = Dictionary(motions.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        self.liveModel = LiveSession.loadModel(dataRoot: folder.deletingLastPathComponent()).0
     }
 
     // ------------------------------------------------------------------ files
     private func openAppend(_ name: String, header: String) -> FileHandle? {
-        let url = folder.appendingPathComponent(name)
+        var url = folder.appendingPathComponent(name)
+        // a session started by an older app version has other columns: continue in a second file, never mix
+        if let old = try? String(contentsOf: url, encoding: .utf8), let first = old.split(separator: "\n").first,
+           String(first) + "\n" != header {
+            url = folder.appendingPathComponent(name.replacingOccurrences(of: ".csv", with: "_v31.csv"))
+        }
         if !FileManager.default.fileExists(atPath: url.path) {
             FileManager.default.createFile(atPath: url.path, contents: header.data(using: .utf8))
         }
@@ -182,7 +200,7 @@ final class SessionRunner: ObservableObject {
     }
 
     private func logCue(_ st: Step, hostNs: Int64, sensorNs: Int64, status: String, note: String = "",
-                        shownNs: Int64? = nil, live: LiveVerdict? = nil) {
+                        shownNs: Int64? = nil, live: LiveVerdict? = nil, check: TrialCheck? = nil, vote: String = "") {
         guard var s = state else { return }
         s.trial += 1
         // the same planned trial repeated (after a switch/gap) keeps its uid; two idles in one round do not collide
@@ -196,7 +214,9 @@ final class SessionRunner: ObservableObject {
                                 String(st.step), st.motion, st.condition, String(format: "%.2f", st.windowS),
                                 [st.note, note].filter { !$0.isEmpty }.joined(separator: "; "), st.module,
                                 String(s.attempts[key] ?? 1), status, shownNs.map { String($0) } ?? "",
-                                live.map { String($0.count) } ?? "", live?.text ?? ""]
+                                live.map { String($0.count) } ?? "", live?.text ?? "",
+                                check?.flags.joined(separator: ";") ?? "", check?.rule ?? "", check?.model ?? "",
+                                check?.dtw ?? "", vote, check.map { String(format: "%.3f", $0.peakRot) } ?? ""]
         state = s
         if let d = (fields.map(csv).joined(separator: ",") + "\n").data(using: .utf8) { cueFile?.write(d) }
         try? cueFile?.synchronize()
@@ -217,6 +237,27 @@ final class SessionRunner: ObservableObject {
     }
     func requestRecalibration() { recalibrateRequested = true; note("experimenter: recalibrate") }
     func stop() { stopRequested = true; skipFlag = true; continueFlag = true; note("experimenter: end session") }
+    func toggleEndAfterRound() {
+        endAfterRound.toggle()
+        note(endAfterRound ? "experimenter: end after this round" : "experimenter: cancel end after this round")
+    }
+    /// The person cannot do the motion being cued: skip it from now on (logged, not counted as an error).
+    func cantDoCurrent() {
+        guard let st = state, st.index < st.steps.count else { return }
+        let m = st.steps[st.index].motion
+        guard !m.isEmpty, m != "idle", m != "still", !m.hasPrefix("calib") else { return }
+        var s = st
+        var list = s.cantDo ?? []
+        for part in m.components(separatedBy: ">") where !list.contains(part) { list.append(part) }
+        s.cantDo = list
+        state = s
+        note("experimenter: cannot do \(m)")
+        skipFlag = true
+    }
+    private func isCantDo(_ st: Step) -> Bool {
+        guard let list = state?.cantDo, !list.isEmpty, st.kind == .cue else { return false }
+        return st.motion.components(separatedBy: ">").contains { list.contains($0) }
+    }
 
     // ------------------------------------------------------------------ run
     func start(resuming: Bool) {
@@ -238,6 +279,16 @@ final class SessionRunner: ObservableObject {
         note(resuming ? "resume (segment \(seg))" : "start (segment \(seg))")
         recorder.onSwitch = { [weak self] from, to in Task { @MainActor in self?.earbudSwitched(from: from, to: to) } }
         recorder.onGap = { [weak self] g in Task { @MainActor in self?.gap(g) } }
+        recorder.engine.setModel(liveModel)
+        recorder.engine.onResult = { [weak self] r in Task { @MainActor in self?.collect(r) } }
+        recorder.engine.onNod = nil
+        recorder.engine.onCalibrated = { [weak self] h in
+            Task { @MainActor in
+                self?.note(h.map { String(format: "trial checks: head frame ready (heading %.2f rad)", $0) }
+                           ?? "trial checks: no head frame from the nods")
+            }
+        }
+        recorder.engine.onEarbudSwitch = nil
         phase = .running
         Platform.configureAudio()
         Platform.keepAwake(true)
@@ -303,16 +354,31 @@ final class SessionRunner: ObservableObject {
                 continue
             }
             updateProgress()
-            let step = s.steps[s.index]
+            var step = s.steps[s.index]
             skipFlag = false
             switchDuringStep = false
-            await run(step)
+            retakeNext = false
+            if isCantDo(step) {
+                logCue(step, hostNs: hostNowNs(), sensorNs: sensorNowNs(), status: "cant_do")
+            } else {
+                await run(step)
+            }
             guard var st = state else { break }
+            // a repeated trial takes over the end-of-block / end-of-module marks, so a block is marked done once
+            if retakeNext && !switchDuringStep && !stopRequested {
+                var again = step
+                again.note = [step.note, "retake after check"].filter { !$0.isEmpty }.joined(separator: "; ")
+                again.sub = "AGAIN: " + step.sub
+                st.steps.insert(again, at: st.index + 1)
+                step.endsBlock = false; step.endsModule = false
+            }
             if switchDuringStep && step.kind == .cue && step.cueKind != "calibration" && !stopRequested {
                 // the trial was disturbed (earbud switch or data gap): repeat it right after the recalibration
                 var again = step
                 again.note = [step.note, "repeat after earbud switch/gap"].filter { !$0.isEmpty }.joined(separator: "; ")
+                again.endsBlock = s.steps[s.index].endsBlock; again.endsModule = s.steps[s.index].endsModule
                 st.steps.insert(again, at: st.index + 1)
+                step.endsBlock = false; step.endsModule = false
             }
             st.index += 1
             if step.endsBlock && step.module == "core" && !stopRequested {
@@ -328,6 +394,14 @@ final class SessionRunner: ObservableObject {
             state = st
             saveState()
             recorder.flush()
+            if endAfterRound && !stopRequested {
+                let next = st.index < st.steps.count ? st.steps[st.index] : nil
+                let sameRound = next.map { $0.kind == .cue && $0.block == step.block && $0.round == step.round && step.round > 0 } ?? false
+                if !sameRound {
+                    note("ended after the round (experimenter)")
+                    stopRequested = true
+                }
+            }
         }
         finish()
     }
@@ -335,7 +409,10 @@ final class SessionRunner: ObservableObject {
     /// How many motions a cue asks for (nil = not checked: pairs, the look-around, the closing still).
     private func expectedMotions(_ st: Step) -> Int? {
         switch st.cueKind {
-        case "rounds", "practice": return st.motion == "idle" ? 0 : 1
+        case "rounds", "practice":
+            if st.motion == "idle" { return 0 }
+            let n = motions[st.motion]?.expectedCount ?? 1
+            return n == 0 ? nil : (n >= 2 ? 3 : 1)   // 3 = a double: one merged event or two both count
         case "commands": return 2
         case "calibration":
             if st.motion == "calib_nod" { return 1 }
@@ -356,7 +433,7 @@ final class SessionRunner: ObservableObject {
         case .cue:
             // v2.1 flow: show + speak the motion (= announced, logged), short pause, GO beep, window, then the
             // one-motion check. No separate ready beep: people move on the name anyway (P01: 61 % before GO).
-            motion = st.motion
+            motion = motions[st.motion]?.demo ?? st.motion
             feedback = ""
             let shown = sensorNowNs()
             let stillCalib = st.cueKind == "calibration" && st.motion == "still"
@@ -364,10 +441,12 @@ final class SessionRunner: ObservableObject {
             if st.readyS > 0 { await wait(0.25) }
             if skipFlag { logCue(st, hostNs: hostNowNs(), sensorNs: sensorNowNs(), status: "skipped", shownNs: shown); return }
             let h = hostNowNs(), t = sensorNowNs()
-            if stillCalib { recorder.live.beginQuietCapture() }
+            if stillCalib { recorder.live.beginQuietCapture(); if st.module != "closing" { recorder.engine.beginStill() } }
+            let anglesAtGo = recorder.angles
             Beep.go()
             await wait(st.windowS)
             if stillCalib && !recorder.live.endQuietCapture() { note("live check: still pose too short, default quiet level") }
+            if stillCalib && st.module != "closing" && !recorder.engine.endStill() { note("trial checks: still pose too short") }
             var verdict: LiveVerdict? = nil
             if let expected = expectedMotions(st), !skipFlag {
                 try? await Task.sleep(nanoseconds: 500_000_000)       // let the detector close the last motion
@@ -375,9 +454,37 @@ final class SessionRunner: ObservableObject {
                 verdict = v
                 feedback = v.text
                 feedbackOK = v.ok
+                // face / touch / breath motions hardly move the head: the motion count is logged, not shown
+                if let d = motions[st.motion], !d.isHead { feedback = "" }
+            }
+            var check: TrialCheck? = nil
+            var vote = ""
+            if ["rounds", "practice", "commands"].contains(st.cueKind), st.motion != "idle", !skipFlag {
+                let wa = shown - 300_000_000, wb = t + Int64(st.windowS * 1e9)
+                var c = trialCheck(st, from: wa, to: wb, verdict: verdict, angles: anglesAtGo)
+                vote = c.vote(expected: st.motion)
+                if vote == "mismatch" {
+                    c.flags.append("mismatch")
+                    let seen = [c.rule, c.model, c.dtw].first { !$0.isEmpty && $0 != st.motion } ?? "something else"
+                    feedback = "Looked like \(seen.replacingOccurrences(of: "_", with: " ")): once more, please"
+                    feedbackOK = false
+                } else if vote == "unsure" {
+                    c.flags.append("unsure")
+                }
+                check = c
+                let key = st.uid.map { "uid\($0)" } ?? ""
+                let attempt = (state?.attempts[key] ?? 0) + 1
+                let headMotion = motions[st.motion]?.isHead ?? true
+                let failed = vote == "mismatch" || (headMotion && (verdict.map { !$0.ok } ?? false))
+                if failed && timing.retakeOnce && attempt == 1 && st.cueKind != "practice" { retakeNext = true }
+                if !failed && st.cueKind == "practice" && vote != "unsure", let ev = mainEvent(wa, wb) {
+                    templates.add(st.motion, ev.headRot)
+                }
+            } else if st.cueKind == "rounds" && st.motion == "idle" {
+                lastAngles = anglesAtGo
             }
             logCue(st, hostNs: h, sensorNs: t, status: skipFlag ? "skipped" : (switchDuringStep ? "disturbed" : "done"),
-                   shownNs: shown, live: verdict)
+                   shownNs: shown, live: verdict, check: check, vote: vote)
             if st.cueKind == "calibration" && st.motion == "look_left_right" { Beep.end() }
             await wait(max(0, st.gapAfterS - (verdict == nil ? 0 : 0.5)))
         case .activity:
@@ -399,6 +506,39 @@ final class SessionRunner: ObservableObject {
         }
     }
 
+    // ------------------------------------------------------------------ v3.1 trial checks
+    private func collect(_ r: LiveResult) {
+        results.append(r)
+        if results.count > 100 { results.removeFirst(results.count - 100) }
+    }
+
+    /// The biggest recognised event that started inside the cue window.
+    private func mainEvent(_ a: Int64, _ b: Int64) -> LiveResult? {
+        results.filter { $0.startNs >= a && $0.startNs < b }
+            .max { ($0.features["peak_rot"] ?? 0) < ($1.features["peak_rot"] ?? 0) }
+    }
+
+    private func trialCheck(_ st: Step, from a: Int64, to b: Int64, verdict: LiveVerdict?, angles: HeadAngles) -> TrialCheck {
+        var c = TrialCheck()
+        if let v = verdict, !v.ok { c.flags.append("count") }
+        if let prev = lastAngles {
+            let jump = max(abs(angles.pitch - prev.pitch), abs(angles.roll - prev.roll)) * 180 / Double.pi
+            if jump > timing.postureJumpDeg { c.flags.append("posture_jump") }
+        }
+        lastAngles = angles
+        guard st.cueKind != "commands", let ev = mainEvent(a, b) else { return c }
+        c.peakRot = ev.features["peak_rot"] ?? 0
+        let def = motions[st.motion]
+        if (def?.isHead ?? true) && c.peakRot < timing.smallPeakRot { c.flags.append("too_small") }
+        let single = (def?.expectedCount ?? 1) == 1
+        if RULE_MOTIONS.contains(st.motion) && single {
+            c.rule = ev.rules.motion
+            if let m = liveModel, ev.model.accepted, m.direction[ev.model.kind] != nil { c.model = ev.model.motion }
+        }
+        if st.cueKind != "practice", let near = templates.nearest(ev.headRot) { c.dtw = near.motion }
+        return c
+    }
+
     private func finish() {
         guard var s = state else { return }
         s.meta.ended = Date()
@@ -410,6 +550,9 @@ final class SessionRunner: ObservableObject {
         try? noteFile?.close()
         recorder.onSwitch = nil
         recorder.onGap = nil
+        recorder.engine.stop()
+        recorder.engine.onResult = nil
+        recorder.engine.onCalibrated = nil
         Platform.keepAwake(false)
         phase = .finished
         title = s.meta.status == "complete" ? "DONE. Thank you!" : "Session ended early (saved)"

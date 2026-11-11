@@ -143,7 +143,7 @@ final class LiveDetector {
         return out
     }
 
-    /// Verdict for one cue window. expected = 1 (motion), 2 (command), 0 (idle / still).
+    /// Verdict for one cue window. expected = 1 (motion), 2 (command), 3 (double motion), 0 (idle / still).
     func verdict(from a: Int64, to b: Int64, expected: Int) -> LiveVerdict {
         let ev = events(startingFrom: a, to: b)
         let biggest = ev.map(\.energy).max() ?? 0
@@ -154,6 +154,10 @@ final class LiveDetector {
         case 0:
             return n == 0 ? LiveVerdict(count: 0, ok: true, text: "✓ still")
                           : LiveVerdict(count: n, ok: false, text: "We saw a movement: stay natural, no gesture")
+        case 3:   // v3.1: a double motion (quick doubles often merge into one event)
+            if n == 0 { return LiveVerdict(count: 0, ok: false, text: "No motion seen") }
+            if n <= 2 { return LiveVerdict(count: n, ok: true, text: "✓ double") }
+            return LiveVerdict(count: n, ok: false, text: "We saw \(n) motions: just the double, once")
         case 2:
             if n == 0 { return LiveVerdict(count: 0, ok: false, text: "No motion seen") }
             if n == 1 { return LiveVerdict(count: 1, ok: false, text: "We saw one motion: a command is TWO motions") }

@@ -26,6 +26,7 @@ rm -rf build
 cp Info.plist "$APP/Contents/Info.plist"
 mkdir -p "$APP/Contents/Resources"
 cp live_model.json "$APP/Contents/Resources/live_model.json"   # built-in live recogniser model
+[ -f forest_model.json ] && cp forest_model.json "$APP/Contents/Resources/forest_model.json"   # built-in Forest mode model
 codesign --force --sign - "$APP"   # ad-hoc signature
 
 echo

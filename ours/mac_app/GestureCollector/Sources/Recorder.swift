@@ -31,7 +31,8 @@ final class Recorder: NSObject, ObservableObject, CMHeadphoneMotionManagerDelega
     @Published var segmentPath = ""
 
     let live = LiveDetector()                    // fed with every sample (one-motion check)
-    let engine = LiveEngine()                    // live recogniser (live mode only; idle otherwise)
+    let engine = LiveEngine()                    // live recogniser (live mode + v3.1 trial checks; idle otherwise)
+    let forest = ForestEngine()                  // v3.1 Forest live mode (idle while no forest model is set)
     var onSwitch: ((String, String) -> Void)?   // (from, to), called on the main thread
     var onGap: ((Double) -> Void)?               // gap length in s, called on the main thread
 
@@ -106,6 +107,8 @@ final class Recorder: NSObject, ObservableObject, CMHeadphoneMotionManagerDelega
         live.push(sensorNs: sensorNs, rot: (r.x, r.y, r.z), acc: (u.x * G, u.y * G, u.z * G))
         engine.push(ns: sensorNs, rot: V3(r.x, r.y, r.z), acc: V3(u.x * G, u.y * G, u.z * G),
                     grav: V3(g.x * G, g.y * G, g.z * G), location: loc)
+        forest.push(ns: sensorNs, row: [a.yaw, a.pitch, a.roll, r.x, r.y, r.z, u.x * G, u.y * G, u.z * G,
+                                        g.x * G, g.y * G, g.z * G])
         lock.lock()
         if let last = lastLocation, last != loc { pendingSwitch = (last, loc) }
         if let lt = lastTimestamp, m.timestamp - lt > 1.0 { pendingGap = m.timestamp - lt }

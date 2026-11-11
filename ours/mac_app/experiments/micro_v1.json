@@ -1,0 +1,76 @@
+{
+  "name": "Micro + head v1",
+  "version": "micro-v1",
+  "about": "16 motions (head singles, rifle-style double tilts, face, earlobe) in rounds: every round has each motion once, so any session length gives the same count per motion. Near-miss no-gesture block first among the extras. 10 min = about 2 rounds, 20 min = about 4 plus extras, 40 min = 8 plus all extras.",
+  "motions": [
+    {"id": "nod_down",   "group": "head", "instruction": "NOD DOWN once: chin down and straight back up (don't hold)", "spoken": "nod down"},
+    {"id": "look_up",    "group": "head", "instruction": "LOOK UP once: chin up and straight back (don't hold)", "spoken": "look up"},
+    {"id": "tilt_left",  "group": "head", "instruction": "TILT LEFT once: left ear toward left shoulder and back", "spoken": "tilt left"},
+    {"id": "tilt_right", "group": "head", "instruction": "TILT RIGHT once: right ear toward right shoulder and back", "spoken": "tilt right"},
+    {"id": "turn_left",  "group": "head", "instruction": "TURN LEFT once: look left and straight back", "spoken": "turn left"},
+    {"id": "turn_right", "group": "head", "instruction": "TURN RIGHT once: look right and straight back", "spoken": "turn right"},
+    {"id": "tilt_2x_left",  "group": "head", "expect": 2, "demo": "tilt_left",  "instruction": "DOUBLE TILT LEFT: two quick small tilts to the left", "spoken": "double tilt left"},
+    {"id": "tilt_2x_right", "group": "head", "expect": 2, "demo": "tilt_right", "instruction": "DOUBLE TILT RIGHT: two quick small tilts to the right", "spoken": "double tilt right"},
+    {"id": "mouth_open",      "group": "face", "expect": 0, "demo": "none", "instruction": "OPEN MOUTH wide once and close (head still)", "spoken": "open mouth"},
+    {"id": "puff_cheeks",     "group": "face", "expect": 0, "demo": "none", "instruction": "PUFF CHEEKS once and release (head still)", "spoken": "puff cheeks"},
+    {"id": "jaw_shift_left",  "group": "face", "expect": 0, "demo": "none", "instruction": "JAW LEFT: slide the lower jaw left and back (head still)", "spoken": "jaw left"},
+    {"id": "jaw_shift_right", "group": "face", "expect": 0, "demo": "none", "instruction": "JAW RIGHT: slide the lower jaw right and back (head still)", "spoken": "jaw right"},
+    {"id": "smirk_left",      "group": "face", "expect": 0, "demo": "none", "instruction": "SMIRK LEFT: pull the left mouth corner up and release", "spoken": "smirk left"},
+    {"id": "smirk_right",     "group": "face", "expect": 0, "demo": "none", "instruction": "SMIRK RIGHT: pull the right mouth corner up and release", "spoken": "smirk right"},
+    {"id": "earlobe_left",    "group": "touch", "expect": 0, "demo": "none", "instruction": "PULL LEFT EARLOBE gently down once", "spoken": "left earlobe"},
+    {"id": "earlobe_right",   "group": "touch", "expect": 0, "demo": "none", "instruction": "PULL RIGHT EARLOBE gently down once", "spoken": "right earlobe"}
+  ],
+  "commands": [
+    {"first": "tilt_2x_left",  "then": "nod_down",   "message": "MOVE LEFT"},
+    {"first": "tilt_2x_right", "then": "nod_down",   "message": "MOVE RIGHT"},
+    {"first": "mouth_open",    "then": "nod_down",   "message": "ACK"},
+    {"first": "puff_cheeks",   "then": "turn_left",  "message": "ENEMY LEFT"},
+    {"first": "puff_cheeks",   "then": "turn_right", "message": "ENEMY RIGHT"},
+    {"first": "jaw_shift_left","then": "look_up",    "message": "NEED BACKUP"}
+  ],
+  "timing": {"readyS": 0.8, "windowS": 4.0, "commandWindowS": 6.0, "gapMinS": 2.5, "gapMaxS": 5.0,
+             "idlePerRound": 2, "breakEveryRounds": 4, "speechS": 1.3,
+             "retakeOnce": true, "smallPeakRot": 0.15, "postureJumpDeg": 25},
+  "practicePerMotionFirst": 1,
+  "practicePerMotionLater": 1,
+  "core": [
+    {"id": "core.rounds", "kind": "rounds", "title": "Rounds", "condition": "sitting", "rounds": 10, "minRounds": 2}
+  ],
+  "modules": [
+    {"id": "N", "title": "Near-miss, no gestures", "tests": "false triggers from everyday motion", "rotate": true, "blocks": [
+      {"id": "N.negatives", "kind": "negatives", "title": "No gestures: everyday motions", "activities": [
+        {"text": "TALK: chat with the experimenter, nod along when you agree", "seconds": 60},
+        {"text": "LOOK AROUND the room slowly, as if searching", "seconds": 30},
+        {"text": "TOUCH YOUR FACE: scratch your head, rub your ear, adjust hair or glasses", "seconds": 30},
+        {"text": "YAWN, take a DEEP BREATH, sigh, stretch your neck", "seconds": 30},
+        {"text": "CHEW gum or a snack, DRINK water", "seconds": 45},
+        {"text": "SIT STILL and relax", "seconds": 30}
+      ]}
+    ]},
+    {"id": "T", "title": "While talking", "tests": "gestures with speech", "rotate": true, "blocks": [
+      {"id": "T.rounds", "kind": "rounds", "title": "While talking", "condition": "keep talking or counting aloud, do the motion without stopping", "rounds": 1}
+    ]},
+    {"id": "S", "title": "Small (covert)", "tests": "how small still works", "rotate": true, "blocks": [
+      {"id": "S.rounds", "kind": "rounds", "title": "Small (covert)", "condition": "as small as you think a computer could still notice", "rounds": 1}
+    ]},
+    {"id": "W", "title": "Walking", "tests": "body motion", "rotate": true, "blocks": [
+      {"id": "W.rounds", "kind": "rounds", "title": "Walking", "condition": "walking slowly around the room", "rounds": 1},
+      {"id": "W.negatives", "kind": "negatives", "title": "Walking, no gestures", "activities": [
+        {"text": "WALK around the room, turning at the corners, no gestures", "seconds": 60}
+      ]}
+    ]},
+    {"id": "R", "title": "Re-wear", "tests": "earbud put back differently", "rotate": true, "blocks": [
+      {"id": "R.rewear", "kind": "rewear", "title": "Re-wear"},
+      {"id": "R.rounds", "kind": "rounds", "title": "After re-wear", "condition": "sitting (after re-wear)", "rounds": 1}
+    ]},
+    {"id": "C", "title": "Commands", "tests": "two motions in a row", "rotate": true, "blocks": [
+      {"id": "C.commands", "kind": "commands", "title": "Commands", "n": 6, "text": "Each command = first motion, a short still pause, then the second motion. After the beep."}
+    ]},
+    {"id": "G", "title": "Extra rounds", "tests": "more repetitions", "rotate": false, "blocks": [
+      {"id": "G.rounds", "kind": "rounds", "title": "Extra rounds", "condition": "sitting", "rounds": 1}
+    ]}
+  ],
+  "requireOneOf": [["N"]],
+  "modulesPerDevice": true,
+  "fillModule": "G"
+}

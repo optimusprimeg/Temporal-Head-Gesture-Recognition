@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EarSet Dataset Explorer</title>
+<meta name="description" content="What is inside the public EarSet dataset (30 people, in-ear IMU), how our pipeline sees it, and what it can and cannot tell us.">
+<link rel="stylesheet" href="style.css">
+<style>
+  .chart { width: 100%; min-height: 320px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 14px 0; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+  .tabs button { font: inherit; font-size: 14px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink-2); cursor: pointer; }
+  .tabs button.on { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+  .key { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; font-size: 14px; color: var(--ink-2); }
+  .key i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+  .stat { font-size: 30px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Dataset explorer · practice data</div>
+<h1>EarSet: what is inside, and how our pipeline sees it</h1>
+<p class="lede">EarSet is a public dataset of in-ear motion recordings from 30 people. We use it as a playground to
+build and test the pipeline. Nothing on this page is evidence about AirPods: that comes from our own pilot.</p>
+
+<div class="grid" id="stats"></div>
+
+<h2>1. What was recorded</h2>
+<p>Each person did 18 recordings of about 2 minutes, one activity each, with a research earbud (IMU at about 100 Hz;
+we use the left earbud, resampled to 50 Hz). In the three head-gesture recordings the person repeats the
+gesture again and again. Our detector cuts every recording into motion events; events from the gesture recordings
+are labelled with that gesture, everything else is "no gesture".</p>
+<div id="counts" class="chart" style="height:440px"></div>
+<div class="note warn"><b>Not in EarSet:</b> left vs right (shake and tilt are not split by direction), up vs down,
+circles, two-motion commands, and AirPods. "Shake" is our turn.</div>
+
+<h2>2. A recording over time</h2>
+<p>Person P0, first 40 seconds: total rotation speed of the head, with the events our detector cut out shaded.
+Pick a recording.</p>
+<div class="tabs" id="tl-tabs"></div>
+<div id="timeline" class="chart" style="height:300px"></div>
+
+<h2>3. Single events in the head frame</h2>
+<p>One event from the middle of each recording, for three people. Rotation speed about the head's three axes:
+<span class="key"><i style="background:var(--nod)"></i>x, nod axis</span>
+<span class="key"><i style="background:var(--tilt)"></i>y, tilt axis</span>
+<span class="key"><i style="background:var(--turn)"></i>z, turn axis</span>.
+A nod lives on x, a shake on z, a tilt on y. Talking and walking are smaller and mixed.</p>
+<div id="examples" class="chart" style="height:760px"></div>
+
+<h2>4. Every event as one point: where its rotation goes</h2>
+<p>The three axis shares add up to 1, so each event is a point in a triangle. A pure nod sits in the nod corner, a
+pure turn in the turn corner. The 2,035 gesture events form three tight clusters, one per corner, across all 30
+people. No-gesture events (a sample of 150 per kind) are spread out, but many also land near a corner: that is
+why axis shares alone cannot reject talking or walking.</p>
+<div id="ternary" class="chart" style="height:560px"></div>
+
+<h2>5. Same for everyone, or different per person?</h2>
+<p>Each dot is one person's median. Left: the share of rotation on the gesture's own axis: 0.84-0.99 for nods and
+shakes, and for tilts too except a few people (lowest 0.42), whose tilt carries some turning. Right: peak
+rotation speed: it varies 5-8 fold between people (nod 0.4-2.9 rad/s, shake 1.2-9.0). That is the whole idea behind our
+feature choice: describe <i>which axis</i>, not <i>how fast</i>.</p>
+<div class="two">
+  <div id="pp-share" class="chart" style="height:340px"></div>
+  <div id="pp-speed" class="chart" style="height:340px"></div>
+</div>
+
+<h2>6. Where each feature's variation comes from (R)</h2>
+<p>The mixed model splits each feature's variation into gesture, person, style (this person's way of doing this
+gesture) and trial-to-trial repetition. Only features with a large gesture part pass the keep rule (✓).
+Source: <code>algorithm/results/variance_components.csv</code>.</p>
+<div id="variance" class="chart" style="height:640px"></div>
+
+<h2>What EarSet can and cannot tell us</h2>
+<div class="table-wrap"><table>
+<tr><th>Question</th><th>EarSet</th></tr>
+<tr><td>Do axis shares separate nod / turn / tilt across people?</td><td><span class="tag ok">yes</span> 30 people, clear clusters</td></tr>
+<tr><td>Which features depend on the person?</td><td><span class="tag ok">yes</span> speed, size, timing</td></tr>
+<tr><td>How often do talking, chewing, walking look like a gesture?</td><td><span class="tag part">roughly</span> different device, scripted activities</td></tr>
+<tr><td>Left vs right, up vs down, circles</td><td><span class="tag no">no</span> not labelled / not recorded</td></tr>
+<tr><td>Two-motion commands, pauses</td><td><span class="tag no">no</span> gestures repeated continuously</td></tr>
+<tr><td>AirPods Pro 2 vs AirPods 5</td><td><span class="tag no">no</span> pilot data</td></tr>
+</table></div>
+<p style="color:var(--muted);font-size:14px">Data: EarSet (Scientific Data 2023, Zenodo 8142332). Events and features:
+<code>algorithm/scripts/eval_earset.py</code>; this page's data: <code>algorithm/scripts/earset_viz_data.py</code>.
+The calibration nods come from the same nod recording that is tested, so nod results are partly by construction.</p>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.34.0/plotly.min.js"></script>
+<script src="assets/earset_data.js"></script>
+<script src="site.js"></script>
+<script>
+(function () {
+  const D = window.EARSET;
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const C = () => ({ ink: css("--ink"), ink2: css("--ink-2"), muted: css("--muted"), line: css("--line"),
+    surface: css("--surface"), nod: css("--nod"), tilt: css("--tilt"), turn: css("--turn"), accent: css("--accent"),
+    circle: css("--circle") });
+  const GCOL = (c) => ({ nod: c.nod, shake: c.turn, tilt: c.tilt });
+  const NAME = { nod: "nod", shake: "shake (turn)", tilt: "tilt" };
+  const base = (c, extra) => Object.assign({
+    paper_bgcolor: c.surface, plot_bgcolor: c.surface, font: { family: "Inter, system-ui, sans-serif", color: c.ink2, size: 13 },
+    margin: { l: 56, r: 16, t: 36, b: 48 }, hoverlabel: { bgcolor: c.surface, bordercolor: c.line, font: { color: c.ink } },
+    legend: { orientation: "h", y: -0.18 },
+  }, extra);
+  const ax = (c, extra) => Object.assign({ gridcolor: c.line, zerolinecolor: c.line, linecolor: c.line, tickcolor: c.line }, extra);
+  const cfg = { displaylogo: false, responsive: true, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+
+  // stats
+  const g = D.demographics.gender;
+  document.getElementById("stats").innerHTML = [
+    [D.n_people, "people", `${g.M || 0} men, ${g.F || 0} women, age ${D.demographics.age_min}-${D.demographics.age_max}`],
+    [D.n_events.toLocaleString(), "detected events", "all recordings, all activities"],
+    [D.n_gesture_events.toLocaleString(), "gesture events", "nod, shake, tilt"],
+    [3, "gesture families", "no directions, no circles"],
+  ].map(([n, t, s]) => `<div class="card"><div class="stat">${n}</div><b>${t}</b><p style="color:var(--muted)">${s}</p></div>`).join("");
+
+  let tlAct = "nod";
+  function draw() {
+    const c = C(), gc = GCOL(c);
+
+    // 1. counts
+    const ac = D.activity_counts.slice().reverse();
+    Plotly.react("counts", [{
+      type: "bar", orientation: "h", y: ac.map((a) => a.activity), x: ac.map((a) => a.n),
+      marker: { color: ac.map((a) => gc[a.activity] || c.muted) },
+      text: ac.map((a) => a.group === a.activity ? "" : a.group), textposition: "outside", cliponaxis: false,
+      textfont: { color: c.muted, size: 11 },
+      hovertemplate: "%{y}: %{x} events<extra></extra>",
+    }], base(c, { margin: { l: 110, r: 120, t: 10, b: 40 }, xaxis: ax(c, { title: "detected events (30 people)" }),
+      yaxis: ax(c, { automargin: true }), showlegend: false, bargap: 0.25 }), cfg);
+
+    // 2. timeline
+    const tl = D.timelines.find((t) => t.activity === tlAct);
+    const ymax = Math.max(...tl.mag) * 1.05;
+    Plotly.react("timeline", [{ x: tl.t, y: tl.mag, mode: "lines", line: { color: gc[tlAct] || c.muted, width: 1.6 },
+      hovertemplate: "%{x:.1f} s: %{y:.2f} rad/s<extra></extra>", name: "rotation speed" }],
+      base(c, { showlegend: false, margin: { l: 56, r: 16, t: 14, b: 44 },
+        xaxis: ax(c, { title: "time (s)" }), yaxis: ax(c, { title: "rad/s", range: [0, ymax] }),
+        shapes: tl.events.map(([a, b]) => ({ type: "rect", x0: a, x1: b, y0: 0, y1: ymax, fillcolor: c.accent,
+          opacity: 0.12, line: { width: 0 } })) }), cfg);
+
+    // 3. examples grid
+    const acts = ["nod", "shake", "tilt", "speaking", "walking"], ppl = ["P0", "P10", "P20"];
+    const tr = [], lay = base(c, { showlegend: false, margin: { l: 70, r: 10, t: 30, b: 36 },
+      grid: { rows: acts.length, columns: ppl.length, pattern: "independent", ygap: 0.25, xgap: 0.08 }, annotations: [] });
+    acts.forEach((a, r) => ppl.forEach((p, k) => {
+      const i = r * ppl.length + k + 1, e = D.examples.find((x) => x.person === p && x.activity === a);
+      lay[`xaxis${i}`] = ax(c, { showticklabels: r === acts.length - 1, title: r === acts.length - 1 ? "s" : "" });
+      lay[`yaxis${i}`] = ax(c, { range: [-4.5, 4.5], showticklabels: k === 0,
+        title: k === 0 ? { text: a, font: { size: 13, color: c.ink } } : "" });
+      if (r === 0) lay.annotations.push({ text: p, xref: `x${i} domain`, yref: `y${i} domain`, x: 0.5, y: 1.25,
+        showarrow: false, font: { color: c.ink, size: 13 } });
+      if (!e) return;
+      const t = e.x.map((_, j) => j / e.fs);
+      [["x", c.nod], ["y", c.tilt], ["z", c.turn]].forEach(([k2, col]) => tr.push({
+        x: t, y: e[k2], xaxis: `x${i}`, yaxis: `y${i}`, mode: "lines", line: { color: col, width: 1.6 },
+        hovertemplate: `${p} ${a}, ${k2}: %{y:.2f} rad/s<extra></extra>` }));
+    }));
+    Plotly.react("examples", tr, lay, cfg);
+
+    // 4. ternary
+    const P = D.points, groups = ["nod", "shake", "tilt"], idx = (f) => P.group.map((gr, i) => f(gr) ? i : -1).filter((i) => i >= 0);
+    const tern = groups.map((gr) => {
+      const ii = idx((x) => x === gr);
+      return { type: "scatterternary", mode: "markers", name: NAME[gr], a: ii.map((i) => P.share_x[i]), b: ii.map((i) => P.share_y[i]),
+        c: ii.map((i) => P.share_z[i]), text: ii.map((i) => P.person[i]),
+        marker: { color: gc[gr], size: 5, opacity: 0.55, line: { width: 0 } },
+        hovertemplate: `${NAME[gr]}, %{text}<br>nod %{a:.2f} · tilt %{b:.2f} · turn %{c:.2f}<extra></extra>` };
+    });
+    const nn = idx((x) => !groups.includes(x));
+    tern.unshift({ type: "scatterternary", mode: "markers", name: "no gesture (sample)", a: nn.map((i) => P.share_x[i]),
+      b: nn.map((i) => P.share_y[i]), c: nn.map((i) => P.share_z[i]), text: nn.map((i) => `${P.activity[i]}, ${P.person[i]}`),
+      marker: { color: c.muted, size: 5, opacity: 0.45, symbol: "x-thin", line: { width: 1, color: c.muted } },
+      hovertemplate: "%{text}<br>nod %{a:.2f} · tilt %{b:.2f} · turn %{c:.2f}<extra></extra>" });
+    const tAx = (t, col) => ({ title: { text: t, font: { color: col } }, min: 0, linecolor: c.line, gridcolor: c.line, tickfont: { size: 10 } });
+    Plotly.react("ternary", tern, base(c, { margin: { l: 50, r: 50, t: 50, b: 40 }, legend: { orientation: "h", y: -0.06 },
+      ternary: { bgcolor: c.surface, aaxis: tAx("nod (x)", c.nod), baxis: tAx("tilt (y)", c.tilt), caxis: tAx("turn (z)", c.turn) } }), cfg);
+
+    // 5. per person
+    const ppTr = (key) => D.per_person.map((d) => ({ x: d.people, y: d[key], mode: "markers", name: NAME[d.gesture],
+      marker: { color: gc[d.gesture], size: 8, line: { width: 2, color: c.surface } },
+      hovertemplate: `${NAME[d.gesture]}, %{x}: %{y:.2f}<extra></extra>` }));
+    const ppLay = (title, yax) => base(c, { title: { text: title, font: { size: 14, color: c.ink }, x: 0.02 },
+      xaxis: ax(c, { tickangle: -60, tickfont: { size: 9 } }), yaxis: ax(c, yax), legend: { orientation: "h", y: -0.32 },
+      margin: { l: 56, r: 12, t: 40, b: 70 } });
+    Plotly.react("pp-share", ppTr("own_share"), ppLay("Share on the gesture's own axis", { range: [0, 1.02], title: "share" }), cfg);
+    Plotly.react("pp-speed", ppTr("peak_rot"), ppLay("Peak rotation speed", { rangemode: "tozero", title: "rad/s" }), cfg);
+
+    // 6. variance
+    const V = D.variance.slice().sort((a, b) => a.gesture - b.gesture);
+    const lab = V.map((v) => (v.keep ? "✓ " : "") + v.feature);
+    const parts = [["gesture", c.accent], ["person", c.tilt], ["style", c.circle], ["repetition", c.line]];
+    Plotly.react("variance", parts.map(([k, col]) => ({ type: "bar", orientation: "h", name: k, y: lab, x: V.map((v) => v[k]),
+      marker: { color: col, line: { width: 1, color: c.surface } },
+      hovertemplate: `%{y}<br>${k}: %{x:.2f}<extra></extra>` })),
+      base(c, { barmode: "stack", margin: { l: 130, r: 16, t: 10, b: 60 }, legend: { orientation: "h", y: -0.08 },
+        xaxis: ax(c, { range: [0, 1], title: "share of variation" }), yaxis: ax(c, { automargin: true, tickfont: { size: 11 } }) }), cfg);
+  }
+
+  const tabs = document.getElementById("tl-tabs");
+  tabs.innerHTML = D.timelines.map((t) => `<button type="button" data-a="${t.activity}"${t.activity === tlAct ? ' class="on"' : ""}>${t.activity}</button>`).join("");
+  tabs.addEventListener("click", (ev) => {
+    const b = ev.target.closest("button"); if (!b) return;
+    tlAct = b.dataset.a; tabs.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); draw();
+  });
+  draw();
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+})();
+</script>
+</body>
+</html>

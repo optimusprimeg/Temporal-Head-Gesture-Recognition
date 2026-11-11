@@ -171,7 +171,11 @@ final class AppModel: ObservableObject {
     }
 
     private func launch(folder: URL, state: SessionState, resuming: Bool) {
-        let r = SessionRunner(folder: folder, state: state, recorder: recorder, timing: plan.timing)
+        // the experiment that was actually run (saved next to the data) wins over the one chosen now (resume)
+        var study = plan
+        if let d = try? Data(contentsOf: folder.appendingPathComponent("experiment.json")),
+           let p = try? JSONDecoder().decode(StudyPlan.self, from: d) { study = p }
+        let r = SessionRunner(folder: folder, state: state, recorder: recorder, timing: study.timing, motions: study.motions)
         r.onModuleDone = { [weak self] meta, id in Task { @MainActor in self?.recordProgress(meta, id) } }
         r.onFinished = { [weak self] meta in Task { @MainActor in self?.sessionFinished(meta) } }
         runner = r

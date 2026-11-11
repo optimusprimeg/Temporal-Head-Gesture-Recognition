@@ -259,11 +259,30 @@ enum Planner {
         steps += practice(plan: study, perMotion: firstSession ? study.practicePerMotionFirst : study.practicePerMotionLater)
 
         let doneCore = participant.coreBlocksDone(device: device)
-        let coreTodo = coreOrder(study.core, groups: study.counterbalance, number: participant.number)
+        var coreTodo = coreOrder(study.core, groups: study.counterbalance, number: participant.number)
             .filter { !doneCore.contains($0.id) }
-        var core: [Step] = []
-        for b in coreTodo { core += block(b, module: "core", plan: study, rng: &rng) }
-        if !core.isEmpty { core[core.count - 1].endsModule = true }
+        // v3.1: short on time -> cut rounds blocks that allow it (minRounds), the longest first, one round at a time.
+        // Rounds hold every motion once, so a cut session still has the same count for every motion.
+        let rngAtCore = rng
+        func buildCore(_ blocks: [BlockDef], _ r: inout SeededRNG) -> [Step] {
+            var c: [Step] = []
+            for b in blocks { c += block(b, module: "core", plan: study, rng: &r) }
+            if !c.isEmpty { c[c.count - 1].endsModule = true }
+            return c
+        }
+        var probeRng = rngAtCore
+        var core = buildCore(coreTodo, &probeRng)
+        var cut = 0
+        while estimate(steps + core, t) > budget {
+            let cuttable = coreTodo.indices.filter { coreTodo[$0].kind == .rounds && coreTodo[$0].rounds > (coreTodo[$0].minRounds ?? coreTodo[$0].rounds) }
+            guard let i = cuttable.max(by: { coreTodo[$0].rounds < coreTodo[$1].rounds }) else { break }
+            coreTodo[i].rounds -= 1
+            cut += 1
+            probeRng = rngAtCore
+            core = buildCore(coreTodo, &probeRng)
+        }
+        rng = probeRng
+        if cut > 0 { warnings.append("Short on time: \(cut) round(s) cut from the core (every motion keeps the same count).") }
         steps += core
         if estimate(steps, t) > budget {
             warnings.append(String(format: "The core needs about %.0f min, more than the time given. Data will be marked incomplete if it does not finish.", estimate(steps, t) / 60))

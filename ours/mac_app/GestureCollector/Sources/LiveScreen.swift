@@ -28,6 +28,7 @@ struct LiveResult {
     var rules: Decision
     var model: Decision
     var proba: [Double]
+    var headRot: [V3] = []      // v3.1: head-frame rotation of the event (trial checks: DTW templates)
 }
 
 // ---------------------------------------------------------------------------------------------- engine (motion queue)
@@ -65,6 +66,9 @@ final class LiveEngine {
     }
 
     func stop() { lock.lock(); phase = .off; lock.unlock() }
+
+    /// v3.1: true once the 3 nods gave a head frame and events are being recognised.
+    var isRunning: Bool { lock.lock(); defer { lock.unlock() }; return phase == .running }
 
     func push(ns: Int64, rot: V3, acc: V3, grav: V3, location loc: String) {
         lock.lock()
@@ -112,7 +116,7 @@ final class LiveEngine {
             let f = LiveFeatures.compute(rot: rot, fs: fs)
             let d = decide(f, model: m)
             onResult?(LiveResult(startNs: e.startNs, endNs: e.endNs, features: f, rules: d.rules, model: d.model,
-                                 proba: d.proba))
+                                 proba: d.proba, headRot: rot))
         default:
             break
         }
@@ -142,8 +146,12 @@ final class LiveSession: ObservableObject {
     @Published var sounds = true
     @Published var modelSource = ""
     @Published var logPath = ""
+    @Published var forestSource = ""
+    @Published var lastForest: ForestResult?
 
     private(set) var model: LiveModel?
+    private(set) var forest: ForestModel?
+    private var forestLog: FileHandle?
     private var decoder: PairDecoder
     private let recorder: Recorder
     private let dataRoot: URL
@@ -159,18 +167,22 @@ final class LiveSession: ObservableObject {
         self.dataRoot = dataRoot
         let cmds = Dictionary(plan.commands.map { ("\($0.first)>\($0.then)", $0.message) }, uniquingKeysWith: { a, _ in a })
         decoder = PairDecoder(commands: cmds)
+        (model, modelSource) = LiveSession.loadModel(dataRoot: dataRoot)
+        if let m = model { decoder.timeoutS = m.pairTimeoutS }
+        (forest, forestSource) = ForestModel.load(dataRoot: dataRoot)
+    }
+
+    /// live_model.json from the data folder (no rebuild needed to change it), else the built-in one.
+    nonisolated static func loadModel(dataRoot: URL) -> (LiveModel?, String) {
         let user = dataRoot.appendingPathComponent("live_model.json")
         if let d = try? Data(contentsOf: user), let m = try? LiveModel.decode(d) {
-            model = m
-            modelSource = "Model: live_model.json from the data folder (\(m.version))"
-        } else if let url = Bundle.main.url(forResource: "live_model", withExtension: "json"),
-                  let d = try? Data(contentsOf: url), let m = try? LiveModel.decode(d) {
-            model = m
-            modelSource = "Model: built in (\(m.version))"
-        } else {
-            modelSource = "No live_model.json found: the recogniser cannot run"
+            return (m, "Model: live_model.json from the data folder (\(m.version))")
         }
-        if let m = model { decoder.timeoutS = m.pairTimeoutS }
+        if let url = Bundle.main.url(forResource: "live_model", withExtension: "json"),
+           let d = try? Data(contentsOf: url), let m = try? LiveModel.decode(d) {
+            return (m, "Model: built in (\(m.version))")
+        }
+        return (nil, "No live_model.json found: the recogniser cannot run")
     }
 
     var classes: [String] { model?.classes ?? [] }
@@ -199,6 +211,9 @@ final class LiveSession: ObservableObject {
         eng.onEarbudSwitch = { [weak self] in
             Task { @MainActor in self?.calib = .failed("The stream moved to the other earbud: calibrate again") }
         }
+        // Forest runs on its own detector, needs no calibration, and always runs (logged) when a model is there
+        recorder.forest.setModel(forest)
+        recorder.forest.onResult = { [weak self] r in Task { @MainActor in self?.handleForest(r) } }
         openFiles()
         timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -209,6 +224,10 @@ final class LiveSession: ObservableObject {
         guard started else { return }
         started = false
         recorder.engine.stop()
+        recorder.forest.setModel(nil)
+        recorder.forest.onResult = nil
+        try? forestLog?.close()
+        forestLog = nil
         Platform.keepAwake(false)
         timer?.invalidate()
         timer = nil
@@ -251,6 +270,22 @@ final class LiveSession: ObservableObject {
     }
 
     // ------------------------------------------------------------------ events
+    private func handleForest(_ r: ForestResult) {
+        guard started else { return }
+        lastForest = r
+        var line = [String(hostNowNs()), String(r.startNs), String(r.endNs), mode.rawValue, r.label,
+                    String(format: "%.4f", r.confidence), r.accepted ? "1" : "0"]
+        line += r.proba.map { String(format: "%.4f", $0) }
+        if let d = (line.joined(separator: ",") + "\n").data(using: .utf8) { forestLog?.write(d) }
+        guard mode == .forest, r.accepted else { return }
+        // a forest class is a whole gesture, so it is the command itself
+        lastCommand = LiveCommand(first: r.label, second: "", message: r.label.replacingOccurrences(of: "_", with: " ").uppercased(),
+                                  tStart: Double(r.startNs) / 1e9, tEnd: Double(r.endNs) / 1e9)
+        lastCommandTime = Date()
+        if sounds { Platform.sound("Glass") }
+        if speak { say(r.label.replacingOccurrences(of: "_", with: " ")) }
+    }
+
     private func handle(_ r: LiveResult) {
         guard started else { return }
         let chosen = mode == .rules ? r.rules : r.model
@@ -258,7 +293,7 @@ final class LiveSession: ObservableObject {
         rows.insert(Row(id: counter, time: Date(), result: r, chosen: chosen), at: 0)
         if rows.count > 15 { rows.removeLast(rows.count - 15) }
         var cmd: LiveCommand?
-        if chosen.accepted {
+        if chosen.accepted && mode != .forest {
             if sounds { Platform.sound("Tink") }
             cmd = decoder.push(chosen.motion, tStart: Double(r.startNs) / 1e9, tEnd: Double(r.endNs) / 1e9)
             if let c = cmd {
@@ -308,6 +343,13 @@ final class LiveSession: ObservableObject {
         // live mode is only reachable from the start screen, so no session is writing to the recorder now
         try? recorder.startSegment(at: dir.appendingPathComponent("live_\(stamp)_stream.csv"))
         ownsSegment = true
+        if let f = forest {
+            let furl = dir.appendingPathComponent("live_\(stamp)_forest.csv")
+            let fh = ["host_ns", "start_ns", "end_ns", "mode", "label", "confidence", "accepted"] + f.classes.map { "p_\($0)" }
+            FileManager.default.createFile(atPath: furl.path, contents: (fh.joined(separator: ",") + "\n").data(using: .utf8))
+            forestLog = try? FileHandle(forWritingTo: furl)
+            forestLog?.seekToEndOfFile()
+        }
     }
 
     private func writeRow(_ r: LiveResult, chosen: Decision, command: String, note: String) {
@@ -352,14 +394,17 @@ struct LiveView: View {
                 Text("Earbud: \(rec.location)")
                 Text(rec.status).foregroundColor(rec.healthy ? .green : .orange)
                 Spacer()
-                Text(live.modelSource).font(.caption).foregroundColor(.secondary)
+                VStack(alignment: .trailing) {
+                    Text(live.modelSource).font(.caption).foregroundColor(.secondary)
+                    Text(live.forestSource).font(.caption).foregroundColor(.secondary)
+                }
             }
             AdaptiveStack(spacing: 20) {
                 Picker("Mode", selection: $live.mode) {
                     ForEach(RecognizerMode.allCases, id: \.self) { Text($0.rawValue) }
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 240)
+                .frame(width: 300)
                 Toggle("Speak commands", isOn: $live.speak)
                 Toggle("Sounds", isOn: $live.sounds)
             }
@@ -378,6 +423,10 @@ struct LiveView: View {
                     Text(live.lastCommand?.message ?? "-").font(.system(size: 44, weight: .bold))
                     if let c = live.lastCommand {
                         Text("\(c.first) then \(c.second)").foregroundColor(.secondary)
+                    }
+                    if let f = live.lastForest {
+                        Text(String(format: "Forest last saw: %@ (%.2f)%@", f.label, f.confidence, f.accepted ? "" : ", not sent"))
+                            .font(.caption).foregroundColor(.secondary)
                     }
                     if let p = live.pending {
                         Text("First motion: \(p). Waiting up to 1.5 s for the second...").foregroundColor(.orange)
@@ -424,8 +473,13 @@ struct LiveView: View {
 
 extension LiveSession {
     func modeHelp(for m: RecognizerMode) -> String {
-        m == .rules
-            ? "Rules: the axis that carries most of the rotation (nod / tilt / turn), a loop for circles, direction from the first swing. No 'not a gesture' class: anything with one clear axis counts as a motion."
-            : "Model: logistic regression trained on EarSet (30 people) + P01. It also has a 'not a gesture' class and needs ≥ 50 % confidence. Circles: only 16 training examples so far."
+        switch m {
+        case .rules:
+            return "Rules: the axis that carries most of the rotation (nod / tilt / turn), a loop for circles, direction from the first swing. No 'not a gesture' class: anything with one clear axis counts as a motion."
+        case .model:
+            return "Model: logistic regression trained on EarSet (30 people) + P01. It also has a 'not a gesture' class and needs ≥ 50 % confidence. Circles: only 16 training examples so far."
+        case .forest:
+            return "Forest: the teammates' receiver approach (start at 0.60 rad/s, 96 raw statistics, random forest) on all our recordings. Each class is a whole gesture (e.g. tilt 2x left) and is sent as the command. No calibration needed."
+        }
     }
 }

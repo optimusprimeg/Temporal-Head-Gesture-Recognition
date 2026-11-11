@@ -7,6 +7,30 @@ records continuously, and resumes after a crash.
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
 
+## New in v3.1: any session length, trial checks, Forest mode (one rebuild, then files only)
+- **Any length:** the start screen has 10 / 20 / 40 min buttons. Rounds hold every motion once, so the planner
+  cuts whole rounds (a rounds block's `minRounds` in the experiment file) and every motion keeps the same count.
+  **End after this round** stops cleanly at any point; an unfinished person continues next time (resume as before).
+- **Trial checks** (`Sources/Checks.swift`): after each cue, three opinions vote on whether the right motion was
+  done: our rules, the live model, and DTW against the person's own practice trials. The majority disagreeing
+  means `mismatch`. A mismatch or a wrong motion count gives **one retake**, never more. Other flags:
+  `too_small`, `posture_jump`, `unsure`. Nothing is deleted; every attempt stays in `cues.csv`, with new
+  columns `flags, check_rule, check_model, check_dtw, check_vote, peak_rot`. A session started by an older
+  version continues in `cues_v31.csv`.
+- **Can't do this motion** (experimenter button): skipped for this person from then on, logged as `cant_do`.
+- **Motions in the experiment file** may say `"expect": 2` (a double, e.g. `tilt_2x_left`), `"expect": 0` (not
+  counted, e.g. face motions), `"group": "head"|"face"|"touch"`, and `"demo": "tilt_left"` (which head animation to
+  show). Face and touch motions are checked and flagged but never retaken for "no motion seen".
+- **Forest live mode** (`Sources/ForestModel.swift`): the teammates' receiver approach (0.60 rad/s trigger,
+  96 statistics, random forest) next to Rules and Model. It is trained the fixed way, on the windows its own
+  detector cuts (`algorithm/scripts/export_forest_model.py`). `forest_model.json` in the data folder replaces the
+  built-in one, so no rebuild is needed. Every forest decision is logged to `live/live_<stamp>_forest.csv`.
+- **Experiment for the micro study:** `../experiments/micro_v1.json`. Copy it to `<data folder>/experiments/`;
+  on the iPhone, use Files > On My iPhone > Gesture Collector > experiments.
+- **Review on the PC:** `python algorithm/scripts/review_session.py <session.zip>` writes
+  `ours/data/reviews/<session>.md`.
+- **Checks on GitHub:** both parity tests (the live recogniser and the forest) run before the build.
+
 ## New in v3: experiment files, iPhone app, fixes from the independent check
 - **Experiment files:** each protocol is a JSON file in `<data folder>/experiments/` (built in: `pilot.json` =
   Pilot v3, `selftest.json`), chosen per session on the start screen. Order rules live in the file:
