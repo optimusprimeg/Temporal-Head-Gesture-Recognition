@@ -1,5 +1,5 @@
 // Parity check for the Forest live mode: the Swift receiver-96 features and forest must match Python.
-//   swiftc Sources/ForestModel.swift Tests/forest_main.swift -o forest_parity && ./forest_parity forest_model.json Tests/forest_parity.json
+//   swiftc Sources/ForestModel.swift Tests/forest/main.swift -o forest_parity && ./forest_parity forest_model.json Tests/forest_parity.json
 // Both JSON files are written by algorithm/scripts/export_forest_model.py.
 
 import Foundation
