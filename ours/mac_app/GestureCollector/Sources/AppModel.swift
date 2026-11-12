@@ -51,6 +51,44 @@ final class AppModel: ObservableObject {
     }
 
     /// Rescans <data folder>/experiments and keeps the current choice if it is still valid (else the pilot).
+    /// v3.3: copy picked files into the right place: *.json -> experiments/, *.gif -> experiments/media/,
+    /// a folder -> its *.json and *.gif (and a "media" subfolder's clips), then reload. Replaces same-named files.
+    func importExperiments(_ urls: [URL]) {
+        let fm = FileManager.default
+        let exp = Experiments.folder(dataRoot), media = exp.appendingPathComponent("media")
+        try? fm.createDirectory(at: media, withIntermediateDirectories: true)
+        var json = 0, gif = 0, failed: [String] = []
+        func copy(_ src: URL, to dir: URL) -> Bool {
+            let dst = dir.appendingPathComponent(src.lastPathComponent)
+            if src.standardizedFileURL == dst.standardizedFileURL { return true }
+            try? fm.removeItem(at: dst)
+            do { try fm.copyItem(at: src, to: dst); return true } catch { failed.append(src.lastPathComponent); return false }
+        }
+        func take(_ u: URL) {
+            switch u.pathExtension.lowercased() {
+            case "json": if copy(u, to: exp) { json += 1 }
+            case "gif": if copy(u, to: media) { gif += 1 }
+            default: break
+            }
+        }
+        for u in urls {
+            let scoped = u.startAccessingSecurityScopedResource()
+            defer { if scoped { u.stopAccessingSecurityScopedResource() } }
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: u.path, isDirectory: &isDir), isDir.boolValue {
+                let items = (try? fm.contentsOfDirectory(at: u, includingPropertiesForKeys: nil)) ?? []
+                for i in items { take(i) }
+                let sub = u.appendingPathComponent("media")
+                for i in (try? fm.contentsOfDirectory(at: sub, includingPropertiesForKeys: nil)) ?? [] { take(i) }
+            } else {
+                take(u)
+            }
+        }
+        reloadExperiments()
+        message = "Imported \(json) experiment file(s) and \(gif) clip(s) into \(exp.path)"
+            + (failed.isEmpty ? "" : ". Could not copy: " + failed.joined(separator: ", "))
+    }
+
     func reloadExperiments() {
         experiments = Experiments.load(dataRoot: dataRoot)
         let keep = UserDefaults.standard.string(forKey: "experimentFile") ?? experimentFile

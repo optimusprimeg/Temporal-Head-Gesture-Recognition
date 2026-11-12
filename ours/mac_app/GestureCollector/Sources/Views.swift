@@ -2,6 +2,7 @@
 // The same screens on the Mac and the iPhone (narrow screen: AdaptiveStack stacks rows, everything scrolls).
 
 import SwiftUI
+import UniformTypeIdentifiers
 #if os(macOS)
 import AppKit
 #endif
@@ -49,6 +50,7 @@ struct StartView: View {
     @State private var wear = ""
     @State private var consent = false
     @State private var numberText = ""
+    @State private var importing = false
 
     var body: some View {
         ScrollView {
@@ -79,7 +81,12 @@ struct StartView: View {
                             Text("\(e.file) is not usable: " + e.errors.prefix(4).joined(separator: "; "))
                                 .font(.caption).foregroundColor(.red)
                         }
-                        Button("Reload experiment files") { model.reloadExperiments() }.font(.caption)
+                        AdaptiveStack {
+                            Button("Import experiment / clips...") { importing = true }
+                            Button("Reload experiment files") { model.reloadExperiments() }.font(.caption)
+                        }
+                        Text("Pick v5.json (and the media folder or its .gif clips): they are copied into the data folder's experiments folder.")
+                            .font(.caption2).foregroundColor(.secondary)
                     }.padding(4)
                 }
                 AdaptiveStack {
@@ -171,6 +178,10 @@ struct StartView: View {
                 }
                 if !model.message.isEmpty { Text(model.message).foregroundColor(.red) }
             }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .gif, .folder],
+                      allowsMultipleSelection: true) { result in
+            if case .success(let urls) = result { model.importExperiments(urls) }
         }
     }
 }
