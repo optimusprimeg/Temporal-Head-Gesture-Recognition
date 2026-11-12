@@ -98,7 +98,7 @@ enum Planner {
     static func duration(_ s: Step, _ t: Timing) -> Double {
         switch s.kind {
         case .message: return 15
-        case .cue: return (s.spoken.isEmpty ? 0 : t.speechS) + s.readyS + s.windowS + s.gapAfterS
+        case .cue: return (s.spoken.isEmpty ? 0 : t.speechS) + s.windowS + s.gapAfterS   // v3.2: no wait before the window
         case .activity: return s.windowS + 4
         case .manualStart: return s.windowS > 0 ? s.windowS : (s.cueKind == "rewear" ? 45 : 70)
         case .manualEnd: return 0
@@ -131,12 +131,16 @@ enum Planner {
     static func practice(plan: StudyPlan, perMotion: Int) -> [Step] {
         guard perMotion > 0 else { return [] }
         var s = [Step(module: "setup", block: "practice", kind: .message, text: "PRACTICE",
-                      sub: "Each motion \(perMotion)x. Watch the head on the screen, then do it after the high beep. One smooth go, straight back to the front.")]
+                      sub: "For each motion: WATCH the demo, press Continue, then do it \(perMotion)x when you hear its name (the green bar shows the time). One smooth go, then keep still.")]
         for m in plan.motions {
+            // v3.3 watch step: the demo loops with the instruction card until the experimenter presses Continue
+            s.append(Step(module: "setup", block: "practice", kind: .message, motion: m.id,
+                          text: "WATCH: " + m.instruction, sub: m.card.isEmpty ? "Watch the demo, then press Continue." : m.card))
             for k in 1...perMotion {
                 s.append(Step(module: "setup", block: "practice", kind: .cue, cueKind: "practice", round: k,
                               motion: m.id, condition: "sitting", windowS: plan.timing.windowS, gapAfterS: 2.5,
-                              readyS: plan.timing.readyS, spoken: m.spoken, text: m.instruction, sub: "practice \(k) of \(perMotion)"))
+                              readyS: plan.timing.readyS, spoken: m.spoken, text: m.instruction,
+                              sub: [m.card, "practice \(k) of \(perMotion)"].filter { !$0.isEmpty }.joined(separator: "\n")))
             }
         }
         s[s.count - 1].endsBlock = true
@@ -151,9 +155,11 @@ enum Planner {
         switch b.kind {
         case .rounds:
             s.append(Step(module: module, block: b.id, kind: .message, text: b.title.uppercased(),
-                          sub: b.text ?? "\(b.rounds) round(s). Condition: \(b.condition). Do the motion right after the high beep, in one smooth go, straight back to the front (don't hold), then keep still."))
+                          sub: b.text ?? "\(b.rounds) round(s). Condition: \(b.condition). Do the motion as soon as you hear its name, in one smooth go, then keep still until the next one."))
             for r in 1...max(1, b.rounds) {
-                var seq = motionIDs + Array(repeating: "idle", count: t.idlePerRound)
+                // v3.3: a motion with "every": n is in rounds 1, 1+n, 1+2n ... only (e.g. 1x versions at half the reps)
+                let inRound = motionIDs.filter { id in (r - 1) % max(1, plan.motion(id)?.every ?? 1) == 0 }
+                var seq = inRound + Array(repeating: "idle", count: t.idlePerRound)
                 seq.shuffle(using: &rng)
                 for m in seq {
                     let def = plan.motion(m)
@@ -161,7 +167,7 @@ enum Planner {
                                   condition: b.condition, windowS: t.windowS, gapAfterS: gap(&rng), readyS: t.readyS,
                                   spoken: m == "idle" ? "nothing" : (def?.spoken ?? m),
                                   text: m == "idle" ? "NOTHING: stay natural" : (def?.instruction ?? m),
-                                  sub: "[\(b.condition)]  round \(r) of \(b.rounds)"))
+                                  sub: [def?.card ?? "", "[\(b.condition)]  round \(r) of \(b.rounds)"].filter { !$0.isEmpty }.joined(separator: "\n")))
                 }
                 if r % t.breakEveryRounds == 0 && r < b.rounds {
                     s.append(Step(module: module, block: b.id, kind: .message, text: "SHORT BREAK",

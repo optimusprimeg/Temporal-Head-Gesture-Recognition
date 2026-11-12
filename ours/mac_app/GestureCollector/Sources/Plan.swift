@@ -22,7 +22,13 @@ struct MotionDef: Codable, Hashable {
     // v3.1 (all optional in the file)
     var expect: Int? = nil    // motions the detector should see (1 = single, 2 = double); nil = 1; 0 = not checked
     var group: String? = nil  // head / face / touch / breath / other. Only "head" singles get the rule check.
-    var demo: String? = nil   // built-in head animation to show (a motions8 id); nil = id itself
+    var demo: String? = nil   // head animation: a motions8 id or several, comma-separated ("tilt_left,tilt_left");
+                              // nil = id itself. A clip <data folder>/experiments/media/<id>.gif wins when present.
+    // v3.3 instruction card + scheduling
+    var how: String? = nil    // one line: how to do it (shown under the title)
+    var avoid: String? = nil  // one line: what not to do
+    var every: Int? = nil     // rounds: in every n-th round only (2 = half the reps); nil = every round
+    var check: String? = nil  // the single head motion our rules/model call it (tilt_1x_left -> "tilt_left")
 
     init(id: String, instruction: String, spoken: String, expect: Int? = nil, group: String? = nil, demo: String? = nil) {
         self.id = id; self.instruction = instruction; self.spoken = spoken
@@ -36,6 +42,14 @@ struct MotionDef: Codable, Hashable {
         expect = try c.decodeIfPresent(Int.self, forKey: .expect)
         group = try c.decodeIfPresent(String.self, forKey: .group)
         demo = try c.decodeIfPresent(String.self, forKey: .demo)
+        how = try c.decodeIfPresent(String.self, forKey: .how)
+        avoid = try c.decodeIfPresent(String.self, forKey: .avoid)
+        every = try c.decodeIfPresent(Int.self, forKey: .every)
+        check = try c.decodeIfPresent(String.self, forKey: .check)
+    }
+    /// how + avoid as one line for the screen ("" if neither is set)
+    var card: String {
+        [how, avoid.map { "Don't: \($0)" }].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "   ·   ")
     }
     var expectedCount: Int { expect ?? 1 }
     var isHead: Bool { (group ?? "head") == "head" }
@@ -205,6 +219,7 @@ struct StudyPlan: Codable, Hashable {
         if motions.isEmpty { e.append("no motions") }
         if motionIDs.count != motions.count { e.append("two motions have the same id") }
         for m in motions where (m.expect ?? 1) < 0 || (m.expect ?? 1) > 4 { e.append("motion \(m.id): expect must be 0...4") }
+        for m in motions where (m.every ?? 1) < 1 { e.append("motion \(m.id): every must be at least 1") }
         for c in commands {
             if !motionIDs.contains(c.first) { e.append("command \(c.message): unknown motion '\(c.first)'") }
             if !motionIDs.contains(c.then) { e.append("command \(c.message): unknown motion '\(c.then)'") }

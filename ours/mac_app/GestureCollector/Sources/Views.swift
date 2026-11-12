@@ -301,7 +301,8 @@ struct RunView: View {
                     }
                 }
                 Spacer()
-                TwoHeads(motion: runner.motion, recorder: rec, reference: model.reference)
+                TwoHeads(motion: runner.motion, recorder: rec, reference: model.reference,
+                         clip: runner.cueID.isEmpty ? nil : model.dataRoot.appendingPathComponent("experiments/media/\(runner.cueID).gif"))
             }
             Button("Set front (look straight ahead, then click)") { model.reference = rec.angles }.font(.caption)
             Spacer()

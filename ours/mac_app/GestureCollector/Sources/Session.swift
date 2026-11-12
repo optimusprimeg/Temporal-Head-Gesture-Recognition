@@ -11,7 +11,7 @@
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "3.2.0"
+let APP_VERSION = "3.3.0"
 let PROTOCOL_VERSION = "v3.2-2026-11"   // v3: experiment files; v3.1: trial checks + retake; v3.2: the name is the go
 // v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
 // labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
@@ -122,6 +122,7 @@ final class SessionRunner: ObservableObject {
     @Published var title = ""
     @Published var sub = ""
     @Published var motion = ""          // motion being cued (for the head animation)
+    @Published var cueID = ""           // v3.3: the motion id itself (its clip: experiments/media/<id>.gif)
     @Published var countdown = 0.0
     @Published var nowActive = false      // v3.2: the motion window is open (green NOW bar)
     @Published var windowS = 0.0
@@ -428,6 +429,11 @@ final class SessionRunner: ObservableObject {
         title = st.text
         sub = st.sub
         motion = ""
+        cueID = ""
+        if st.kind == .message && !st.motion.isEmpty {         // v3.3 watch step: show the demo while reading
+            motion = motions[st.motion]?.demo ?? st.motion
+            cueID = st.motion
+        }
         switch st.kind {
         case .message:
             await speaker.say(st.text.lowercased())
@@ -440,6 +446,7 @@ final class SessionRunner: ObservableObject {
             var st = st
             st.windowS += st.spoken.isEmpty ? 0 : timing.speechS
             motion = motions[st.motion]?.demo ?? st.motion
+            cueID = st.motion
             feedback = ""
             let shown = sensorNowNs()
             let stillCalib = st.cueKind == "calibration" && st.motion == "still"
@@ -543,9 +550,12 @@ final class SessionRunner: ObservableObject {
         let def = motions[st.motion]
         if (def?.isHead ?? true) && c.peakRot < timing.smallPeakRot { c.flags.append("too_small") }
         let single = (def?.expectedCount ?? 1) == 1
-        if RULE_MOTIONS.contains(st.motion) && single {
-            c.rule = ev.rules.motion
-            if let m = liveModel, ev.model.accepted, m.direction[ev.model.kind] != nil { c.model = ev.model.motion }
+        let alias = def?.check ?? st.motion                    // v3.3: tilt_1x_left is checked as tilt_left
+        if RULE_MOTIONS.contains(alias) && single {
+            c.rule = ev.rules.motion == alias ? st.motion : ev.rules.motion
+            if let m = liveModel, ev.model.accepted, m.direction[ev.model.kind] != nil {
+                c.model = ev.model.motion == alias ? st.motion : ev.model.motion
+            }
         }
         if st.cueKind != "practice", let near = templates.nearest(ev.headRot) { c.dtw = near.motion }
         return c

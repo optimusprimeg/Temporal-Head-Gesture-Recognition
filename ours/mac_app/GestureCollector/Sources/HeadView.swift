@@ -113,7 +113,27 @@ enum MotionPose {
     }
 
     static func isMotion(_ m: String) -> Bool {
-        ["nod_down", "calib_nod", "look_up", "tilt_left", "tilt_right", "turn_left", "turn_right", "circle_cw", "circle_ccw"].contains(m)
+        let parts = m.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+        return !parts.isEmpty && parts.allSatisfy {
+            ["nod_down", "calib_nod", "look_up", "tilt_left", "tilt_right", "turn_left", "turn_right", "circle_cw", "circle_ccw"].contains($0)
+        }
+    }
+
+    /// v3.3: "tilt_left,tilt_left" = the parts one after another (0.9 s each, circles 2 s), then a pause.
+    static func sequenceAngles(_ m: String, t: Double) -> (Double, Double, Double) {
+        let parts = m.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+        guard parts.count > 1 else { return angles(m, t: t) }
+        let lens = parts.map { $0.hasPrefix("circle") ? 2.0 : 0.9 }
+        let total = lens.reduce(0, +) + 1.5
+        var x = t.truncatingRemainder(dividingBy: total)
+        for (p, l) in zip(parts, lens) {
+            if x < l {
+                let dur = p.hasPrefix("circle") ? 2.0 : 1.2      // angles() plays one motion in `dur` of a 3 s cycle
+                return angles(p, t: x / l * dur)
+            }
+            x -= l
+        }
+        return (0, 0, 0)
     }
 }
 
@@ -122,7 +142,7 @@ struct MotionDemo: View {
 
     var body: some View {
         TimelineView(.animation) { ctx in
-            let a = MotionPose.angles(motion, t: ctx.date.timeIntervalSinceReferenceDate)
+            let a = MotionPose.sequenceAngles(motion, t: ctx.date.timeIntervalSinceReferenceDate)
             Head3D(pitch: a.0, roll: a.1, yaw: a.2, tint: .systemBlue)
         }
     }
@@ -145,12 +165,14 @@ struct TwoHeads: View {
     var motion: String
     @ObservedObject var recorder: Recorder
     var reference: HeadAngles
+    var clip: URL? = nil              // v3.3: experiments/media/<id>.gif, shown instead of the 3D demo when present
 
     var body: some View {
         HStack(spacing: 16) {
             VStack {
                 Text("DO THIS").font(.headline).foregroundColor(.blue)
-                if MotionPose.isMotion(motion) { MotionDemo(motion: motion) } else { Head3D(tint: .systemBlue) }
+                if let c = clip, FileManager.default.fileExists(atPath: c.path) { AnimatedClip(url: c) }
+                else if MotionPose.isMotion(motion) { MotionDemo(motion: motion) } else { Head3D(tint: .systemBlue) }
             }.frame(width: Platform.isPhone ? 150 : 230, height: Platform.isPhone ? 180 : 260)
             VStack {
                 Text("YOU").font(.headline).foregroundColor(.orange)

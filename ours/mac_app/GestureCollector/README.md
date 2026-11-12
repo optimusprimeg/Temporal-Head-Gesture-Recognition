@@ -7,6 +7,20 @@ records continuously, and resumes after a crash.
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
 
+## New in v3.3: the teammates' 30 gestures, instruction cards, demo clips
+- **Experiments for the v5 gesture set** (`../experiments/`, made by `algorithm/scripts/make_v5_experiments.py`):
+  `v5.json` = collector_v5's 30 items with the same labels, in random rounds; `v5_plus.json` = those + 1x versions
+  (half the reps) + our extra gestures + near-miss cues + modules. `algorithm/scripts/app_to_v5_csv.py` turns a
+  session into collector_v5's dataset CSV, so app data and v5 data merge.
+- **Instruction card:** a motion may have `how` and `avoid` lines (shown under the title in practice and rounds).
+- **WATCH step:** before each motion's first practice, its demo loops with the card until Continue.
+- **Demo clips:** `<data folder>/experiments/media/<motion id>.gif` plays instead of the 3D head (`Sources/Media.swift`).
+  54 cartoon clips are in `../experiments/media/` (`algorithm/scripts/make_gesture_clips.py`); copy the folder
+  next to the experiment files. Any GIF with the motion's id replaces one, with no rebuild.
+- **3D demo sequences:** `"demo": "tilt_left,tilt_left"` plays the parts one after another.
+- **`every`:** a motion with `"every": 2` is in every 2nd round only (1x versions, near-miss cues).
+- **`check`:** the single head motion the rules know it as (`tilt_1x_left` -> `tilt_left`), for the trial check.
+
 ## New in v3.2: the name is the go
 Text and voice start together and the motion window opens right away (people moved on the name anyway). A green
 **NOW** bar fills for the window (planned window + speech time) and one short beep marks its end; there is no beep

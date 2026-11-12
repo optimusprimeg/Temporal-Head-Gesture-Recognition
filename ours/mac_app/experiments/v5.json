@@ -1,0 +1,324 @@
+{
+  "name": "Teammates v5 (rounds)",
+  "version": "v5-rounds-1",
+  "about": "collector_v5's 30 items with the same labels: 23 gestures + 4 short idles in random rounds (each once per round, 3 s window), then 3 x 60 s idle. Converts to the v5 CSV with app_to_v5_csv.py. About 3.5 min per round.",
+  "motions": [
+    {
+      "id": "tilt_2x_left",
+      "group": "head",
+      "instruction": "Quick double head tilt to the LEFT (ear to shoulder)",
+      "spoken": "double tilt left",
+      "how": "left ear toward left shoulder and back, twice, quickly",
+      "avoid": "shoulders stay down; don't hold",
+      "expect": 2,
+      "demo": "tilt_left,tilt_left"
+    },
+    {
+      "id": "tilt_2x_right",
+      "group": "head",
+      "instruction": "Quick double head tilt to the RIGHT (ear to shoulder)",
+      "spoken": "double tilt right",
+      "how": "right ear toward right shoulder and back, twice, quickly",
+      "avoid": "shoulders stay down; don't hold",
+      "expect": 2,
+      "demo": "tilt_right,tilt_right"
+    },
+    {
+      "id": "nod_2x_front",
+      "group": "head",
+      "instruction": "Quick double nod FORWARD",
+      "spoken": "double nod",
+      "how": "chin down and back up, twice, quickly",
+      "avoid": "don't hold the chin down",
+      "expect": 2,
+      "demo": "nod_down,nod_down"
+    },
+    {
+      "id": "circle_cw",
+      "group": "head",
+      "instruction": "One brisk head circle CLOCKWISE (~2 s)",
+      "spoken": "circle clockwise",
+      "how": "nose draws one clock on the wall: 12, 3, 6, 9, 12",
+      "avoid": "only one circle",
+      "expect": 1,
+      "demo": "circle_cw"
+    },
+    {
+      "id": "circle_ccw",
+      "group": "head",
+      "instruction": "One brisk head circle COUNTER-CLOCKWISE (~2 s)",
+      "spoken": "circle counter clockwise",
+      "how": "nose draws one clock backwards: 12, 9, 6, 3, 12",
+      "avoid": "only one circle",
+      "expect": 1,
+      "demo": "circle_ccw"
+    },
+    {
+      "id": "rotate_left_chin_down",
+      "group": "head",
+      "instruction": "Turn head LEFT, then dip chin down",
+      "spoken": "turn left, chin down",
+      "how": "look left, dip the chin once, come back to the front",
+      "avoid": "don't turn your body",
+      "expect": 2,
+      "demo": "turn_left,nod_down"
+    },
+    {
+      "id": "rotate_right_chin_down",
+      "group": "head",
+      "instruction": "Turn head RIGHT, then dip chin down",
+      "spoken": "turn right, chin down",
+      "how": "look right, dip the chin once, come back to the front",
+      "avoid": "don't turn your body",
+      "expect": 2,
+      "demo": "turn_right,nod_down"
+    },
+    {
+      "id": "mouth_open_2x",
+      "group": "face",
+      "instruction": "Open mouth wide twice (head still)",
+      "spoken": "open mouth twice",
+      "how": "open wide and close, twice",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "puff_cheeks_2x",
+      "group": "face",
+      "instruction": "Puff both cheeks twice (head still)",
+      "spoken": "puff cheeks twice",
+      "how": "fill both cheeks with air and release, twice",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "jaw_shift_left_right",
+      "group": "face",
+      "instruction": "Slide jaw LEFT, then RIGHT, back to centre",
+      "spoken": "jaw left, right",
+      "how": "lower jaw slides left, then right, then centre",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "smile_2x",
+      "group": "face",
+      "instruction": "Closed-mouth smile, both sides, twice",
+      "spoken": "smile twice",
+      "how": "lips closed, both corners up, twice",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "molar_tap_2x",
+      "group": "face",
+      "instruction": "Tap back teeth together twice (quick, firm)",
+      "spoken": "teeth tap twice",
+      "how": "back teeth click together twice",
+      "avoid": "don't move your head",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "jaw_forward_2x",
+      "group": "face",
+      "instruction": "Push lower jaw FORWARD twice",
+      "spoken": "jaw forward twice",
+      "how": "push the lower jaw out and back, twice",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "jaw_clench_double",
+      "group": "face",
+      "instruction": "Clench back teeth firmly twice",
+      "spoken": "clench twice",
+      "how": "bite down hard for a moment, twice",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "eyebrow_up_down_2x",
+      "group": "face",
+      "instruction": "Raise eyebrows and lower them, twice (head still)",
+      "spoken": "eyebrows twice",
+      "how": "eyebrows up and down, twice",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "eyebrow_then_mouth_open",
+      "group": "combo",
+      "instruction": "Eyebrows up-down ONCE, pause ~1 s, open mouth wide ONCE",
+      "spoken": "eyebrows, then mouth",
+      "how": "eyebrows once, wait one second, mouth once",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "mouth_open_then_eyebrow",
+      "group": "combo",
+      "instruction": "Open mouth wide ONCE, pause ~1 s, eyebrows up-down ONCE",
+      "spoken": "mouth, then eyebrows",
+      "how": "mouth once, wait one second, eyebrows once",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "eyebrow_then_puff_cheeks",
+      "group": "combo",
+      "instruction": "Eyebrows up-down ONCE, pause ~1 s, puff cheeks ONCE",
+      "spoken": "eyebrows, then puff",
+      "how": "eyebrows once, wait one second, puff once",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "mouth_open_then_puff_cheeks",
+      "group": "combo",
+      "instruction": "Open mouth wide ONCE, pause ~1 s, puff cheeks ONCE",
+      "spoken": "mouth, then puff",
+      "how": "mouth once, wait one second, puff once",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "puff_cheeks_then_eyebrow",
+      "group": "combo",
+      "instruction": "Puff cheeks ONCE, pause ~1 s, eyebrows up-down ONCE",
+      "spoken": "puff, then eyebrows",
+      "how": "puff once, wait one second, eyebrows once",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "jaw_left_then_eyebrow",
+      "group": "combo",
+      "instruction": "Slide jaw LEFT and back ONCE, pause ~1 s, eyebrows up-down ONCE",
+      "spoken": "jaw left, then eyebrows",
+      "how": "jaw left and back, wait one second, eyebrows once",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "eyebrow_then_jaw_left",
+      "group": "combo",
+      "instruction": "Eyebrows up-down ONCE, pause ~1 s, slide jaw LEFT and back ONCE",
+      "spoken": "eyebrows, then jaw left",
+      "how": "eyebrows once, wait one second, jaw left and back",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "jaw_right_then_eyebrow",
+      "group": "combo",
+      "instruction": "Slide jaw firmly RIGHT, hold briefly, back; pause ~1 s; eyebrows up-down ONCE",
+      "spoken": "jaw right, then eyebrows",
+      "how": "jaw right, hold, back; wait one second; eyebrows once",
+      "avoid": "keep your head still",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "idle_still",
+      "group": "idle",
+      "instruction": "Sit still, breathe normally",
+      "spoken": "stay still",
+      "how": "relax, look ahead",
+      "avoid": "no gesture",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "idle_talk",
+      "group": "idle",
+      "instruction": "Talk naturally (count aloud, read something)",
+      "spoken": "talk",
+      "how": "count aloud until the beep",
+      "avoid": "no gesture",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "idle_chew",
+      "group": "idle",
+      "instruction": "Chew (gum or pretend)",
+      "spoken": "chew",
+      "how": "chew normally until the beep",
+      "avoid": "no gesture",
+      "expect": 0,
+      "demo": "none"
+    },
+    {
+      "id": "idle_swallow",
+      "group": "idle",
+      "instruction": "Swallow ONCE, otherwise still",
+      "spoken": "swallow",
+      "how": "one normal swallow",
+      "avoid": "no gesture",
+      "expect": 0,
+      "demo": "none"
+    }
+  ],
+  "commands": [],
+  "timing": {
+    "readyS": 0.8,
+    "windowS": 3.0,
+    "commandWindowS": 6.0,
+    "gapMinS": 2.0,
+    "gapMaxS": 3.5,
+    "idlePerRound": 0,
+    "breakEveryRounds": 4,
+    "speechS": 1.3,
+    "retakeOnce": true,
+    "smallPeakRot": 0.15,
+    "postureJumpDeg": 25
+  },
+  "practicePerMotionFirst": 1,
+  "practicePerMotionLater": 0,
+  "core": [
+    {
+      "id": "core.rounds",
+      "kind": "rounds",
+      "title": "Rounds",
+      "condition": "sitting",
+      "rounds": 20,
+      "minRounds": 2
+    },
+    {
+      "id": "core.long_idle",
+      "kind": "negatives",
+      "title": "Long idle (60 s each)",
+      "activities": [
+        {
+          "text": "SIT STILL: sit relaxed and still, look at the screen",
+          "seconds": 60
+        },
+        {
+          "text": "TALK: talk naturally the whole time (read aloud, chat)",
+          "seconds": 60
+        },
+        {
+          "text": "CHEW: chew gum (or pretend) the whole time",
+          "seconds": 60
+        }
+      ]
+    }
+  ],
+  "modules": [],
+  "fillModule": null
+}
