@@ -77,6 +77,8 @@ def convert(folder: Path, subject: str):
     for c in ["flags", "check_vote", "live_verdict", "note"]:
         cues[c] = cues[c].astype(object).where(cues[c].notna(), "").astype(str)
 
+    # v3.5: trials the experimenter marked wrong ("Last one was wrong: redo") -> bad:experimenter wrong
+    wrong = {(str(r.motion), int(r.sensor_ns_est)) for _, r in cues.iterrows() if r.status == "marked_wrong"}
     takes = []
     for _, r in cues.iterrows():
         if r.kind == "rounds" and r.status in ("done", "disturbed"):
@@ -128,6 +130,8 @@ def convert(folder: Path, subject: str):
             problems.append("head moved")
         if r.status == "disturbed":
             problems.append("disturbed")
+        if (str(r.motion), int(r.sensor_ns_est)) in wrong:
+            problems.append("experimenter: wrong motion")
         flags = [f for f in str(r["flags"]).split(";") if f]
         if "mismatch" in flags:
             problems.append("app: wrong motion")

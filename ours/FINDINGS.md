@@ -99,9 +99,12 @@ Status labels: **SOLID** (several people/datasets, repeatable), **LIKELY** (cons
 - **So**: rerun feature selection per gesture family once all v5 data is in (planned).
 
 ### F10. Data quirks that silently break results (always check). SOLID
-- Teammates' older collector files store gravity pointing UP (g units); the app and Sensor Logger export store it
-  DOWN; the new v5 collector files (S03/S8/S9) store it DOWN in m/s². Wrong sign flips left/right
-  (rotate-left read 0/30 before the fix, 15/15 after). Normalise gravity sign and units before merging.
+- Teammates' older collector files store gravity pointing UP (g units); the app, the Sensor Logger export and the
+  new v5 collector files (S03/S8/S9) all store it DOWN in m/s² (checked 2026-11-13: app P01 gravZ -9.4, S03 -9.1,
+  S8 -9.5, S9 -8.6). So app sessions and v5 files merge as they are; only the old collector files need the flip.
+  Wrong sign flips left/right (rotate-left read 0/30 before the fix, 15/15 after).
+- Earbud side: teammates record with the RIGHT AirPod only; left vs right flips tilt/turn signs. App v3.5 now
+  asks for the right one in v5 experiments; check `sensor_location` before merging any older app session.
 - Never open data CSVs in Excel and save (timestamps break).
 - Some v5 gestures are ONE merged motion (rotate_*_chin_down, circles, jaw_shift_left_right, tilt_hold): never
   split or map them to single motions. Combos (X_then_Y) are two parts by design.
@@ -192,3 +195,10 @@ Status labels: **SOLID** (several people/datasets, repeatable), **LIKELY** (cons
 
 ## Change log
 - 2026-11-13: file created from all work so far (F1-F17).
+- 2026-11-13: F10 updated (gravity convention checked across app and v5 files; earbud side rule).
+
+## Experiment-side notes (what the app records for the paper, v3.5)
+- `feedback.json` per session: easy-to-do and OK-in-public (1-5) per gesture group + the hardest gesture in the
+  participant's words -> a usability column next to accuracy.
+- "Confused?" clicks (notes.csv) and experimenter "marked_wrong" rows (cues.csv) -> which gestures are hard to
+  understand vs hard to perform.

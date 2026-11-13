@@ -51,6 +51,9 @@ struct StartView: View {
     @State private var consent = false
     @State private var numberText = ""
     @State private var importing = false
+    @State private var editName = ""          // v3.5 fix / remove a participant
+    @State private var editNumber = ""
+    @State private var confirmRemove = false
 
     var body: some View {
         ScrollView {
@@ -155,6 +158,36 @@ struct StartView: View {
                         }.frame(maxWidth: 360)
                         if let p = model.participant {
                             Text(p.summary).font(.caption).foregroundColor(.secondary)
+                            DisclosureGroup("Fix or remove \(p.code)") {
+                                AdaptiveStack {
+                                    TextField("first name (now \(p.firstName))", text: $editName).frame(maxWidth: 200)
+                                    if p.sessions.isEmpty {
+                                        TextField("number (now \(p.number))", text: $editNumber).frame(maxWidth: 160)
+                                    }
+                                    Button("Save") {
+                                        roster.edit(p.number, firstName: editName, profile: [:])
+                                        if let n = Int(editNumber.uppercased().replacingOccurrences(of: "P", with: "")), n != p.number {
+                                            if roster.renumber(p.number, to: n) { model.select(n) }
+                                            else { model.message = "Number \(n) is taken (or \(p.code) already has sessions)." }
+                                        }
+                                        editName = ""; editNumber = ""
+                                    }.disabled(editName.isEmpty && editNumber.isEmpty)
+                                    Button("Remove \(p.code)...") { confirmRemove = true }.foregroundColor(.red)
+                                }
+                                Text(p.sessions.isEmpty ? "No recordings yet." :
+                                     "The number cannot change after recording (it is in the folder names). Remove moves the \(p.sessions.count) session folder(s) to removed/, nothing is deleted.")
+                                    .font(.caption).foregroundColor(.secondary)
+                            }
+                            .alert("Remove \(p.firstName) (\(p.code))?", isPresented: $confirmRemove) {
+                                Button("Remove", role: .destructive) {
+                                    let n = p.number
+                                    model.select(nil)
+                                    model.message = roster.remove(n, dataRoot: model.dataRoot)
+                                }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text("They leave the list. Their \(p.sessions.count) session folder(s) are moved to the data folder's removed/ folder (not deleted).")
+                            }
                             Picker("AirPods", selection: $model.device) {
                                 ForEach(AppModel.devices, id: \.self) { Text($0) }
                             }.frame(maxWidth: 360)
@@ -197,7 +230,13 @@ struct CheckView: View {
             Text("Device check").font(.title).bold().onAppear { model.detectAirPods() }
             CheckLine(ok: rec.rateHz > 20, text: String(format: "Rate %.0f Hz (50, or 25 on some models)", rec.rateHz))
             CheckLine(ok: abs(rec.gravityNorm - 9.81) < 0.5, text: String(format: "|g| %.2f m/s² (about 9.81)", rec.gravityNorm))
-            CheckLine(ok: rec.location != "-", text: "Streaming earbud: \(rec.location)")
+            if let need = model.plan.earbud {
+                CheckLine(ok: rec.location == need,
+                          text: rec.location == need ? "Streaming earbud: \(need) (as this experiment needs)"
+                              : "Streaming earbud: \(rec.location). This experiment needs the \(need.uppercased()) AirPod only: put the other one in its case.")
+            } else {
+                CheckLine(ok: rec.location != "-", text: "Streaming earbud: \(rec.location)")
+            }
             if let n = model.detected["name"] {
                 Text("\(Platform.isPhone ? "iPhone" : "macOS") sees: \(n)\(model.detected["productID"].map { "  (product \($0), firmware \(model.detected["firmware"] ?? "?"))" } ?? ""). Saved with the session; check it matches \"\(model.device)\".")
                     .font(.caption)
@@ -210,7 +249,9 @@ struct CheckView: View {
                     LiveHead(recorder: rec, reference: model.reference).frame(width: 240, height: 240)
                     Button("Set front (look straight ahead, then click)") { model.reference = rec.angles }
                 }
-                Text("Ask the participant to nod, tilt and turn: the head should follow.\n\nKeep BOTH AirPods in for the whole session. If one comes out, the stream moves to the other bud and the app will ask for a new calibration.")
+                Text("Ask the participant to nod, tilt and turn: the head should follow.\n\n" + (model.plan.earbud.map {
+                    "Wear the \($0.uppercased()) AirPod only for the whole session (the other one in its case), so the data matches the team's recordings."
+                } ?? "Keep BOTH AirPods in for the whole session. If one comes out, the stream moves to the other bud and the app will ask for a new calibration."))
                     .frame(maxWidth: 360, alignment: .leading)
             }
             Spacer()
@@ -341,6 +382,10 @@ struct RunView: View {
                 EmptyView()
             }
             Divider()
+            if let need = model.plan.earbud, rec.location != need, rec.location != "-" {
+                Text("Streaming from the \(rec.location.uppercased()) AirPod: this experiment needs the \(need.uppercased()) one only. Pause, swap, then Calibrate again.")
+                    .font(.headline).foregroundColor(.orange)
+            }
             HStack {
                 Text("\(rec.status) | \(Int(rec.rateHz)) Hz | earbud \(rec.location) | \(rec.segmentSamples) samples in this segment")
                     .font(.caption).foregroundColor(rec.healthy ? .secondary : .orange)
@@ -352,6 +397,8 @@ struct RunView: View {
                     Button("Skip this step") { runner.skip() }
                     Button("Calibrate again") { runner.requestRecalibration() }
                     Button(runner.endAfterRound ? "Will end after this round (undo)" : "End after this round") { runner.toggleEndAfterRound() }
+                    Button(runner.redoInfo.isEmpty ? "Last one was wrong: redo" : runner.redoInfo) { runner.markLastWrong() }
+                        .disabled(!runner.redoInfo.isEmpty)
                     Button("Can't do this motion") { runner.cantDoCurrent() }
                         .disabled(runner.phase != .running || runner.motion.isEmpty)
                     TextField("note", text: $noteText).frame(maxWidth: 220)
@@ -370,8 +417,36 @@ struct DoneView: View {
     @EnvironmentObject var model: AppModel
     @State private var zipPath = ""
     @State private var zipURL: URL?
+    // v3.5 participant feedback (saved as feedback.json in the session folder)
+    @State private var easy: [String: Int] = [:]
+    @State private var publicOK: [String: Int] = [:]
+    @State private var hardest = ""
+    @State private var feedbackSaved = ""
+
+    private func saveFeedback(_ folder: URL) {
+        let groups = model.plan.feedbackGroups ?? []
+        var out: [String: Any] = ["hardest_or_confusing": hardest,
+                                  "saved": ISO8601DateFormatter().string(from: Date())]
+        for g in groups {
+            out["easy_\(g)"] = easy[g] ?? 0          // 1 = very hard ... 5 = very easy (0 = not answered)
+            out["public_\(g)"] = publicOK[g] ?? 0    // 1 = never in public ... 5 = fine in public
+        }
+        if let d = try? JSONSerialization.data(withJSONObject: out, options: [.prettyPrinted, .sortedKeys]),
+           (try? d.write(to: folder.appendingPathComponent("feedback.json"))) != nil {
+            feedbackSaved = "Saved feedback.json (make the zip again so it is included)"
+            zipURL = nil; zipPath = ""
+        } else { feedbackSaved = "Could not save feedback" }
+    }
+
+    private func scale(_ value: Binding<Int>) -> some View {
+        Picker("", selection: value) {
+            Text("-").tag(0)
+            ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
+        }.pickerStyle(.segmented).frame(maxWidth: 220)
+    }
 
     var body: some View {
+        PhoneScroll {
         VStack(alignment: .leading, spacing: 12) {
             if let m = model.lastMeta {
                 Text(m.status == "complete" ? "Session complete" : "Session saved (incomplete)").font(.title).bold()
@@ -402,8 +477,49 @@ struct DoneView: View {
                 }
             }
             if !zipPath.isEmpty { Text(zipPath).font(.caption).textSelection(.enabled) }
+            if let r = model.runner {
+                let rows = AppModel.sessionSummary(folder: r.folder)
+                if !rows.isEmpty {
+                    GroupBox("This session per gesture (good = done - marked wrong)") {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 2) {
+                                ForEach(rows) { x in
+                                    HStack {
+                                        Text(x.motion.replacingOccurrences(of: "_", with: " ")).frame(width: 220, alignment: .leading)
+                                        Text("good \(x.done - x.wrong)").frame(width: 70, alignment: .leading)
+                                        Text(x.flagged > 0 ? "flagged \(x.flagged)" : "").foregroundColor(.orange).frame(width: 80, alignment: .leading)
+                                        Text(x.wrong > 0 ? "wrong \(x.wrong)" : "").foregroundColor(.red).frame(width: 70, alignment: .leading)
+                                        Text(x.confused > 0 ? "confused \(x.confused)" : "").foregroundColor(.purple)
+                                    }.font(.caption.monospacedDigit())
+                                }
+                            }
+                        }.frame(maxHeight: 220)
+                    }
+                }
+                if let groups = model.plan.feedbackGroups, !groups.isEmpty {
+                    GroupBox("Ask the participant (1 = worst, 5 = best)") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(groups, id: \.self) { g in
+                                AdaptiveStack {
+                                    Text("\(g.capitalized) gestures").frame(width: 130, alignment: .leading)
+                                    Text("easy to do").font(.caption)
+                                    scale(Binding(get: { easy[g] ?? 0 }, set: { easy[g] = $0 }))
+                                    Text("OK in public").font(.caption)
+                                    scale(Binding(get: { publicOK[g] ?? 0 }, set: { publicOK[g] = $0 }))
+                                }
+                            }
+                            TextField("Hardest or most confusing gesture(s), in their words", text: $hardest)
+                            HStack {
+                                Button("Save feedback") { saveFeedback(r.folder) }
+                                Text(feedbackSaved).font(.caption).foregroundColor(.secondary)
+                            }
+                        }.padding(4)
+                    }
+                }
+            }
             Spacer()
             Button("Back to start") { model.backToStart() }.keyboardShortcut(.defaultAction)
+        }
         }
     }
 }

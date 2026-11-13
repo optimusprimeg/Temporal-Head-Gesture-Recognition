@@ -184,6 +184,8 @@ struct StudyPlan: Codable, Hashable {
     var requireOneOf: [[String]] = []     // module id groups: at least one of each per person
     var modulesPerDevice: Bool = false
     var fillModule: String? = "G"
+    var earbud: String? = nil             // v3.5: "right" / "left" = record with that AirPod only (teammates: right)
+    var feedbackGroups: [String]? = nil   // v3.5: end-of-session 1-5 ratings, one per motion group (nil = none)
 
     func motion(_ id: String) -> MotionDef? { motions.first { $0.id == id } }
 
@@ -214,6 +216,8 @@ struct StudyPlan: Codable, Hashable {
         requireOneOf = try c.decodeIfPresent([[String]].self, forKey: .requireOneOf) ?? []
         modulesPerDevice = try c.decodeIfPresent(Bool.self, forKey: .modulesPerDevice) ?? false
         fillModule = try c.decodeIfPresent(String.self, forKey: .fillModule) ?? "G"
+        earbud = try c.decodeIfPresent(String.self, forKey: .earbud)
+        feedbackGroups = try c.decodeIfPresent([String].self, forKey: .feedbackGroups)
     }
 
     /// Everything wrong with the file (empty = fine).

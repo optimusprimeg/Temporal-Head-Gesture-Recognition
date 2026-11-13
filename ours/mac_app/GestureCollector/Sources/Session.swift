@@ -11,7 +11,7 @@
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "3.4.0"
+let APP_VERSION = "3.5.0"
 let PROTOCOL_VERSION = "v3.2-2026-11"   // v3: experiment files; v3.1: trial checks + retake; v3.2: the name is the go
 // v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
 // labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
@@ -154,6 +154,10 @@ final class SessionRunner: ObservableObject {
     private var stopRequested = false
     private var recalibrateRequested = false
     private var switchDuringStep = false
+    // v3.5 experimenter "last one was wrong": the last logged gesture trial, and a redo waiting to be inserted
+    private var lastTrial: (step: Step, trial: Int, shownNs: Int64)?
+    private var redoStep: Step?
+    @Published var redoInfo = ""
     var onModuleDone: ((SessionMeta, String) -> Void)?   // (meta, module id or core block id)
     var onFinished: ((SessionMeta) -> Void)?
 
@@ -221,6 +225,9 @@ final class SessionRunner: ObservableObject {
                                 check?.flags.joined(separator: ";") ?? "", check?.rule ?? "", check?.model ?? "",
                                 check?.dtw ?? "", vote, check.map { String(format: "%.3f", $0.peakRot) } ?? ""]
         state = s
+        if status == "done", ["rounds", "practice", "commands"].contains(st.cueKind), st.motion != "idle" {
+            lastTrial = (st, s.trial, shownNs ?? sensorNs)
+        }
         if let d = (fields.map(csv).joined(separator: ",") + "\n").data(using: .utf8) { cueFile?.write(d) }
         try? cueFile?.synchronize()
     }
@@ -244,6 +251,23 @@ final class SessionRunner: ObservableObject {
         endAfterRound.toggle()
         note(endAfterRound ? "experimenter: end after this round" : "experimenter: cancel end after this round")
     }
+    /// v3.5: the experimenter saw the person do the WRONG gesture (or none) in the last trial. Nothing is deleted:
+    /// a row with status "marked_wrong" pointing at that trial is added to cues.csv (column trial of the marked row
+    /// is in the note), and the same trial is done again right after the current step.
+    func markLastWrong() {
+        guard let last = lastTrial, redoStep == nil else { return }
+        logCue(last.step, hostNs: hostNowNs(), sensorNs: last.shownNs, status: "marked_wrong",
+               note: "experimenter: trial \(last.trial) was wrong", shownNs: last.shownNs)
+        lastTrial = nil                      // marking the same trial twice does nothing
+        var again = last.step
+        again.note = [last.step.note, "redo: trial \(last.trial) marked wrong"].filter { !$0.isEmpty }.joined(separator: "; ")
+        again.sub = "AGAIN: " + last.step.sub
+        again.windowS -= last.step.spoken.isEmpty ? 0 : timing.speechS   // the logged window had the speech time added
+        redoStep = again
+        redoInfo = "Will redo \(last.step.motion.replacingOccurrences(of: "_", with: " ")) next"
+        note("experimenter: last trial wrong (\(last.step.motion), trial \(last.trial)); redo queued")
+    }
+
     /// The person cannot do the motion being cued: skip it from now on (logged, not counted as an error).
     func cantDoCurrent() {
         guard let st = state, st.index < st.steps.count else { return }
@@ -299,7 +323,7 @@ final class SessionRunner: ObservableObject {
     }
 
     private func earbudSwitched(from: String, to: String) {
-        banner = "Earbud changed (\(from) -> \(to)). Put BOTH AirPods in; we will calibrate again."
+        banner = "Earbud changed (\(from) -> \(to)). Put the AirPod(s) back as at the start; we will calibrate again."
         switchDuringStep = true
         recalibrateRequested = true
         if var s = state { s.meta.earbudSwitches += 1; state = s }
@@ -382,6 +406,16 @@ final class SessionRunner: ObservableObject {
                 again.endsBlock = s.steps[s.index].endsBlock; again.endsModule = s.steps[s.index].endsModule
                 st.steps.insert(again, at: st.index + 1)
                 step.endsBlock = false; step.endsModule = false
+            }
+            if var again = redoStep, !stopRequested {
+                // v3.5 experimenter redo: right after this step; it takes over the end-of-block marks if it is the same trial
+                if again.uid == step.uid {
+                    again.endsBlock = step.endsBlock; again.endsModule = step.endsModule
+                    step.endsBlock = false; step.endsModule = false
+                }
+                st.steps.insert(again, at: st.index + 1)
+                redoStep = nil
+                redoInfo = ""
             }
             st.index += 1
             if step.endsBlock && step.module == "core" && !stopRequested {

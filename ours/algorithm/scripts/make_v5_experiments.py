@@ -131,7 +131,7 @@ NEAR_MISS = [  # NOT commands: everyday motions the recogniser must ignore (ever
 ]
 
 TIMING = {"readyS": 0.8, "windowS": 3.0, "commandWindowS": 6.0, "gapMinS": 2.0, "gapMaxS": 3.5, "idlePerRound": 0,
-          "breakEveryRounds": 4, "speechS": 1.3, "retakeOnce": True, "smallPeakRot": 0.15, "postureJumpDeg": 25}
+          "breakEveryRounds": 3, "speechS": 1.3, "retakeOnce": True, "smallPeakRot": 0.15, "postureJumpDeg": 25}
 
 
 # "Confused?" button in the app: opens a web search of real people doing it (GIPHY for common expressions and head
@@ -176,6 +176,7 @@ write("v5.json", {
     "about": "collector_v5's 30 items with the same labels: 23 gestures + 4 short idles in random rounds (each once per "
              "round, 3 s window), then 3 x 60 s idle. Converts to the v5 CSV with app_to_v5_csv.py. About 3.5 min per round.",
     "motions": V5, "commands": [], "timing": TIMING, "practicePerMotionFirst": 1, "practicePerMotionLater": 0,
+    "earbud": "right", "feedbackGroups": ["head", "face", "combo"],
     "core": [{"id": "core.rounds", "kind": "rounds", "title": "Rounds", "condition": "sitting", "rounds": 20, "minRounds": 2},
              LONG_IDLE],
     "modules": [], "fillModule": None})
@@ -207,6 +208,7 @@ write("v5_plus.json", {
              "commands) in random rounds, then 3 x 60 s idle; extra modules fill the time (near-miss block first). "
              "About 6 min per round. Converts to the v5 CSV with app_to_v5_csv.py (extra labels kept as they are).",
     "motions": V5 + ONE_X + EXTRA + NEAR_MISS, "commands": [], "timing": TIMING,
+    "earbud": "right", "feedbackGroups": ["head", "face", "combo", "touch"],
     "practicePerMotionFirst": 1, "practicePerMotionLater": 0,
     "core": [{"id": "core.rounds", "kind": "rounds", "title": "Rounds", "condition": "sitting", "rounds": 12, "minRounds": 2},
              LONG_IDLE],

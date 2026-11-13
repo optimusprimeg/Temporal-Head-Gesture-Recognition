@@ -7,6 +7,24 @@ records continuously, and resumes after a crash.
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
 
+## New in v3.5: experimenter tools
+- **Right earbud only** (`"earbud": "right"` in v5 / v5_plus, as collector_v5): the device check and the run screen
+  warn when the other AirPod streams. Left vs right flips tilt/turn signs, so mixed sides would not merge.
+- **Fix or remove a participant** (start screen, under the chosen person): fix the first name; change the number
+  only before any recording; Remove moves their session folders to `<data folder>/removed/<code>_<time>/` with
+  `participant.json` (nothing is deleted).
+- **"Last one was wrong: redo"** (experimenter box): adds a `marked_wrong` row for the last gesture trial to
+  `cues.csv` (note: which trial) and repeats it right after. `app_to_v5_csv.py` marks that take
+  `bad:experimenter: wrong motion`.
+- **Done screen:** per gesture good / flagged / marked wrong / "Confused?" clicks, and participant feedback per
+  gesture group (easy to do, OK in public, 1-5, plus the hardest gesture in their words) saved as `feedback.json`.
+- v5 experiments: a short break every 3 rounds.
+
+## New in v3.4: continue a person, built-in experiments and clips, "Confused?" button
+- Rounds already recorded in a person's earlier sessions (same experiment, same AirPods) are not planned again.
+- `v5.json`, `v5_plus.json` and the demo clips ship inside the app; edited copies are never overwritten.
+- "Confused? See real people do it" opens a GIPHY/YouTube search (the motion's `ref` link); clicks go to notes.csv.
+
 ## New in v3.3: the teammates' 30 gestures, instruction cards, demo clips
 - **Experiments for the v5 gesture set** (`../experiments/`, made by `algorithm/scripts/make_v5_experiments.py`):
   `v5.json` = collector_v5's 30 items with the same labels, in random rounds; `v5_plus.json` = those + 1x versions

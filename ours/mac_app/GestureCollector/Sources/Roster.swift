@@ -107,6 +107,47 @@ final class RosterStore: ObservableObject {
 
     func participant(_ number: Int) -> Participant? { roster.participants.first { $0.number == number } }
 
+    /// v3.5: take a person off the list. Their session folders are MOVED (never deleted) into
+    /// <data folder>/removed/<code>_<time>/ together with their roster entry (participant.json), so it can be undone.
+    func remove(_ number: Int, dataRoot: URL) -> String {
+        guard let p = participant(number) else { return "No participant \(number)." }
+        let stamp = DateFormatter()
+        stamp.dateFormat = "yyyyMMdd_HHmmss"
+        let dest = dataRoot.appendingPathComponent("removed/\(p.code)_\(stamp.string(from: Date()))")
+        let fm = FileManager.default
+        try? fm.createDirectory(at: dest, withIntermediateDirectories: true)
+        var moved = 0
+        for s in p.sessions {
+            let src = dataRoot.appendingPathComponent(s.folder)
+            if fm.fileExists(atPath: src.path), (try? fm.moveItem(at: src, to: dest.appendingPathComponent(s.folder))) != nil {
+                moved += 1
+            }
+        }
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        enc.dateEncodingStrategy = .iso8601
+        if let d = try? enc.encode(p) { try? d.write(to: dest.appendingPathComponent("participant.json")) }
+        roster.participants.removeAll { $0.number == number }
+        save()
+        return "Removed \(p.firstName) (\(p.code)); \(moved) session folder(s) moved to removed/\(dest.lastPathComponent)."
+    }
+
+    /// v3.5: fix a typo in the first name or the profile (the number stays: it is in the session folder names).
+    func edit(_ number: Int, firstName: String, profile: [String: String]) {
+        let name = firstName.trimmingCharacters(in: .whitespaces)
+        update(number) { p in
+            if !name.isEmpty { p.firstName = name }
+            for (k, v) in profile { p.profile[k] = v }
+        }
+    }
+
+    /// v3.5: a wrong number can be changed only before the person has recorded anything.
+    func renumber(_ number: Int, to new: Int) -> Bool {
+        guard new > 0, participant(new) == nil, let p = participant(number), p.sessions.isEmpty else { return false }
+        update(number) { $0.number = new }
+        return true
+    }
+
     func update(_ number: Int, _ change: (inout Participant) -> Void) {
         guard let i = roster.participants.firstIndex(where: { $0.number == number }) else { return }
         change(&roster.participants[i])

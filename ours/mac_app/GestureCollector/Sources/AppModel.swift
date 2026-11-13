@@ -208,6 +208,41 @@ final class AppModel: ObservableObject {
         return out
     }
 
+    /// v3.5 end-of-session table: per motion, gesture trials done, flagged by the checks, marked wrong by the
+    /// experimenter, and "Confused?" clicks (from notes.csv). Rounds, practice and commands rows only.
+    struct SummaryRow: Identifiable { var id: String { motion }; var motion: String; var done = 0, flagged = 0, wrong = 0, confused = 0 }
+
+    static func sessionSummary(folder: URL) -> [SummaryRow] {
+        var rows: [String: SummaryRow] = [:]
+        if let text = try? String(contentsOf: folder.appendingPathComponent("cues.csv"), encoding: .utf8) {
+            var lines = text.split(whereSeparator: \.isNewline).map(String.init)
+            if !lines.isEmpty {
+                let head = csvFields(lines.removeFirst())
+                if let iK = head.firstIndex(of: "kind"), let iM = head.firstIndex(of: "motion"),
+                   let iS = head.firstIndex(of: "status"), let iF = head.firstIndex(of: "flags") {
+                    for l in lines {
+                        let f = csvFields(l)
+                        guard f.count > max(iK, iM, iS, iF), ["rounds", "practice", "commands"].contains(f[iK]) else { continue }
+                        var r = rows[f[iM]] ?? SummaryRow(motion: f[iM])
+                        if f[iS] == "done" { r.done += 1; if !f[iF].isEmpty { r.flagged += 1 } }
+                        if f[iS] == "marked_wrong" { r.wrong += 1 }
+                        rows[f[iM]] = r
+                    }
+                }
+            }
+        }
+        if let notes = try? String(contentsOf: folder.appendingPathComponent("notes.csv"), encoding: .utf8) {
+            for l in notes.split(whereSeparator: \.isNewline) {
+                guard let r = l.range(of: "confused: opened examples for ") else { continue }
+                let m = String(l[r.upperBound...]).trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+                var row = rows[m] ?? SummaryRow(motion: m)
+                row.confused += 1
+                rows[m] = row
+            }
+        }
+        return rows.values.sorted { $0.motion < $1.motion }
+    }
+
     /// One CSV line -> fields (handles "quoted, fields" and "" escapes).
     static func csvFields(_ line: String) -> [String] {
         var out: [String] = [], cur = "", quoted = false
