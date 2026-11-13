@@ -34,9 +34,11 @@ V5 = [  # collector_v5 GESTURES, same ids and instruction text
     M("circle_ccw", "head", "One brisk head circle COUNTER-CLOCKWISE (~2 s)", "circle counter clockwise",
       "nose draws one clock backwards: 12, 9, 6, 3, 12", "only one circle", 1, "circle_ccw"),
     M("rotate_left_chin_down", "head", "Turn head LEFT, then dip chin down", "turn left, chin down",
-      "look left, dip the chin once, come back to the front", "don't turn your body", 2, "turn_left,nod_down"),
+      "ONE merged motion: turn left and, while still turned, dip the chin; then back to the front",
+      "not two separate moves; don't turn your body", 2, "none"),
     M("rotate_right_chin_down", "head", "Turn head RIGHT, then dip chin down", "turn right, chin down",
-      "look right, dip the chin once, come back to the front", "don't turn your body", 2, "turn_right,nod_down"),
+      "ONE merged motion: turn right and, while still turned, dip the chin; then back to the front",
+      "not two separate moves; don't turn your body", 2, "none"),
     M("mouth_open_2x", "face", "Open mouth wide twice (head still)", "open mouth twice",
       "open wide and close, twice", STILL, 0, "none"),
     M("puff_cheeks_2x", "face", "Puff both cheeks twice (head still)", "puff cheeks twice",
@@ -90,6 +92,7 @@ ONE_X = [  # single versions: half the reps (every 2nd round); "check" = the sin
     M("mouth_open_1x", "face", "Open mouth wide ONCE (head still)", "open mouth once", "open wide and close, once", STILL, 0, "none", 2),
     M("puff_cheeks_1x", "face", "Puff both cheeks ONCE (head still)", "puff once", "fill both cheeks and release, once", STILL, 0, "none", 2),
 ]
+EXTRA_EVERY = 3   # candidates: few trials (every 3rd round) until a pilot shows they are clearly separable
 EXTRA = [
     M("small_tilt_2x_left", "head", "SMALL double tilt LEFT (covert)", "small double tilt left",
       "two tiny quick tilts, as if aiming", "keep it small", 2, "tilt_left,tilt_left"),
@@ -113,6 +116,8 @@ EXTRA = [
     M("tap_cheek_2x_left", "touch", "TAP LEFT CHEEK twice with one finger", "tap cheek twice", "two light taps", "don't touch the AirPod", 0, "none"),
     M("tap_chin_2x", "touch", "TAP CHIN twice with one finger", "tap chin twice", "two light taps under the chin", "", 0, "none"),
 ]
+for _m in EXTRA:
+    _m["every"] = EXTRA_EVERY
 NEAR_MISS = [  # NOT commands: everyday motions the recogniser must ignore (every 2nd round)
     M("slow_peek_left", "nearmiss", "LOOK LEFT slowly, as if checking something, then back", "look left slowly",
       "a natural, slow look", "this is NOT a gesture", 0, "turn_left", 2),
@@ -169,7 +174,7 @@ plus_mod = [
 ]
 write("v5_plus.json", {
     "name": "v5 plus (1x, extras, near-miss)", "version": "v5-plus-1",
-    "about": "The 30 v5 items + single (1x) versions at half the reps + our extra gestures + near-miss cues (NOT "
+    "about": "The 30 v5 items + single (1x) versions at half the reps + our extra (candidate) gestures every 3rd round + near-miss cues (NOT "
              "commands) in random rounds, then 3 x 60 s idle; extra modules fill the time (near-miss block first). "
              "About 6 min per round. Converts to the v5 CSV with app_to_v5_csv.py (extra labels kept as they are).",
     "motions": V5 + ONE_X + EXTRA + NEAR_MISS, "commands": [], "timing": TIMING,

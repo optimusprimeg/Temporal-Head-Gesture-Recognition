@@ -85,7 +85,7 @@ struct StartView: View {
                             Button("Import experiment / clips...") { importing = true }
                             Button("Reload experiment files") { model.reloadExperiments() }.font(.caption)
                         }
-                        Text("Pick v5.json (and the media folder or its .gif clips): they are copied into the data folder's experiments folder.")
+                        Text("v5, v5_plus and their demo clips come with the app. Import only your own .json or .gif files: they are copied into the data folder's experiments folder (a clip there replaces the built-in one).")
                             .font(.caption2).foregroundColor(.secondary)
                     }.padding(4)
                 }
@@ -313,7 +313,7 @@ struct RunView: View {
                 }
                 Spacer()
                 TwoHeads(motion: runner.motion, recorder: rec, reference: model.reference,
-                         clip: runner.cueID.isEmpty ? nil : model.dataRoot.appendingPathComponent("experiments/media/\(runner.cueID).gif"))
+                         clip: Experiments.clip(runner.cueID, dataRoot: model.dataRoot))
             }
             Button("Set front (look straight ahead, then click)") { model.reference = rec.angles }.font(.caption)
             Spacer()

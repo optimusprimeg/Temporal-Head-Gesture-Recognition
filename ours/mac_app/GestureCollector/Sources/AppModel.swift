@@ -164,8 +164,68 @@ final class AppModel: ObservableObject {
     func makePreview() {
         guard let p = participant else { return }
         seed = UInt64.random(in: 1...UInt64(Int64.max))
-        preview = Planner.plan(study: plan, participant: p, device: device, budgetMin: budgetMin, seed: seed)
+        preview = Planner.plan(study: plan, participant: p, device: device, budgetMin: budgetMin, seed: seed,
+                               doneRounds: doneRounds(p))
         screen = .review
+    }
+
+    /// v3.4 continue a person: complete rounds per core rounds block, counted from the cues.csv of this person's
+    /// earlier sessions with the same experiment (by name) on the same device. A round counts when every motion
+    /// planned in it was done (or marked can't-do); a round cut off half way does not count.
+    func doneRounds(_ p: Participant) -> [String: Int] {
+        var out: [String: Int] = [:]
+        let blocks = plan.core.filter { $0.kind == .rounds }
+        guard !blocks.isEmpty else { return out }
+        for rec in p.sessions where rec.device == device {
+            let folder = dataRoot.appendingPathComponent(rec.folder)
+            guard let ed = try? Data(contentsOf: folder.appendingPathComponent("experiment.json")),
+                  let ran = try? JSONDecoder().decode(StudyPlan.self, from: ed), ran.name == plan.name,
+                  let text = try? String(contentsOf: folder.appendingPathComponent("cues.csv"), encoding: .utf8)
+            else { continue }
+            var lines = text.split(whereSeparator: \.isNewline).map(String.init)
+            guard !lines.isEmpty else { continue }
+            let head = AppModel.csvFields(lines.removeFirst())
+            guard let iB = head.firstIndex(of: "block"), let iK = head.firstIndex(of: "kind"),
+                  let iR = head.firstIndex(of: "round"), let iM = head.firstIndex(of: "motion"),
+                  let iS = head.firstIndex(of: "status") else { continue }
+            var got: [String: [Int: Set<String>]] = [:]
+            for l in lines {
+                let f = AppModel.csvFields(l)
+                guard f.count > max(iB, iK, iR, iM, iS), f[iK] == "rounds", f[iS] == "done" || f[iS] == "cant_do",
+                      let r = Int(f[iR]) else { continue }
+                got[f[iB], default: [:]][r, default: []].insert(f[iM])
+            }
+            for b in blocks {
+                let ids = b.motions ?? plan.motions.map(\.id)
+                var n = 0
+                for (r, seen) in got[b.id] ?? [:] {
+                    let need = ids.filter { (r - 1) % max(1, plan.motion($0)?.every ?? 1) == 0 }
+                    if need.allSatisfy({ seen.contains($0) }) { n += 1 }
+                }
+                out[b.id, default: 0] += n
+            }
+        }
+        return out
+    }
+
+    /// One CSV line -> fields (handles "quoted, fields" and "" escapes).
+    static func csvFields(_ line: String) -> [String] {
+        var out: [String] = [], cur = "", quoted = false
+        let it = Array(line)
+        var i = 0
+        while i < it.count {
+            let c = it[i]
+            if quoted {
+                if c == "\"" {
+                    if i + 1 < it.count && it[i + 1] == "\"" { cur.append("\""); i += 1 } else { quoted = false }
+                } else { cur.append(c) }
+            } else if c == "\"" { quoted = true }
+            else if c == "," { out.append(cur); cur = "" }
+            else { cur.append(c) }
+            i += 1
+        }
+        out.append(cur)
+        return out
     }
 
     func minutes(_ s: Double) -> String { String(format: "%.0f min", s / 60) }

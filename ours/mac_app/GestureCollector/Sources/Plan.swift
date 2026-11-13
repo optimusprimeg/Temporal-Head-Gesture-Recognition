@@ -85,6 +85,7 @@ struct BlockDef: Codable, Hashable {
     var text: String? = nil         // free / message: instructions; rounds / commands: replaces the default instructions
     var estimateS: Double? = nil    // free: expected duration (time planning only)
     var minRounds: Int? = nil       // rounds: may be cut down to this many when the time is short (nil = never cut)
+    var roundStart: Int? = nil      // v3.4 (planner only): rounds already recorded in earlier sessions; numbering continues
 
     init(id: String, kind: BlockKind, title: String, condition: String = "sitting", rounds: Int = 0, n: Int = 0,
          lists: Int = 0, gaps: [Double] = [], pairsPerGap: Int = 0, activities: [Activity] = [],
@@ -110,6 +111,7 @@ struct BlockDef: Codable, Hashable {
         text = try c.decodeIfPresent(String.self, forKey: .text)
         estimateS = try c.decodeIfPresent(Double.self, forKey: .estimateS)
         minRounds = try c.decodeIfPresent(Int.self, forKey: .minRounds)
+        roundStart = try c.decodeIfPresent(Int.self, forKey: .roundStart)
     }
 }
 
@@ -288,6 +290,7 @@ enum Experiments {
             }
             if write, let d = encode(plan) { try? d.write(to: url, options: .atomic) }
         }
+        installBundled(into: dir)
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [])
             .filter { $0.hasSuffix(".json") }.sorted()
         return names.map { name in
@@ -301,6 +304,47 @@ enum Experiments {
                 return ExperimentFile(file: name, plan: nil, errors: ["not valid JSON for an experiment: \(describe(error))"])
             }
         }
+    }
+
+    /// v3.4: the experiment files shipped inside the app (ours/mac_app/experiments/*.json, copied by build.sh) are
+    /// put into the data folder's experiments folder: when missing, or when the copy there is an older shipped
+    /// version nobody edited (its checksum is remembered). An edited copy is never overwritten.
+    static func installBundled(into dir: URL) {
+        guard let src = Bundle.main.resourceURL?.appendingPathComponent("experiments"),
+              let names = try? FileManager.default.contentsOfDirectory(atPath: src.path) else { return }
+        for name in names where name.hasSuffix(".json") {
+            guard let new = try? Data(contentsOf: src.appendingPathComponent(name)) else { continue }
+            let dest = dir.appendingPathComponent(name), key = "bundledExperiment." + name
+            if let old = try? Data(contentsOf: dest) {
+                guard old != new else { UserDefaults.standard.set(checksum(new), forKey: key); continue }
+                if let shipped = UserDefaults.standard.string(forKey: key) {
+                    guard shipped == checksum(old) else { continue }          // edited after we shipped it: keep
+                } else {
+                    // imported by hand before v3.4: replace it, keeping the old file as <name>.bak
+                    try? FileManager.default.removeItem(at: dest.appendingPathExtension("bak"))
+                    try? FileManager.default.copyItem(at: dest, to: dest.appendingPathExtension("bak"))
+                }
+            }
+            if (try? new.write(to: dest, options: .atomic)) != nil {
+                UserDefaults.standard.set(checksum(new), forKey: key)
+            }
+        }
+    }
+
+    static func checksum(_ d: Data) -> String {           // FNV-1a, stable across launches
+        var h: UInt64 = 0xcbf2_9ce4_8422_2325
+        for b in d { h = (h ^ UInt64(b)) &* 0x100_0000_01b3 }
+        return String(h, radix: 16)
+    }
+
+    /// The demo clip of a motion: <data folder>/experiments/media/<id>.gif (yours win), else the one shipped in the app.
+    static func clip(_ id: String, dataRoot: URL) -> URL? {
+        guard !id.isEmpty else { return nil }
+        let mine = folder(dataRoot).appendingPathComponent("media/\(id).gif")
+        if FileManager.default.fileExists(atPath: mine.path) { return mine }
+        if let b = Bundle.main.resourceURL?.appendingPathComponent("experiments/media/\(id).gif"),
+           FileManager.default.fileExists(atPath: b.path) { return b }
+        return nil
     }
 
     static func describe(_ error: Error) -> String {

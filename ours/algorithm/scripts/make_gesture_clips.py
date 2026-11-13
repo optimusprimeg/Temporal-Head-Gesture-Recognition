@@ -18,11 +18,22 @@ SKIN, LINE, DARK, PINK, BLUE = (247, 214, 186), (60, 45, 40), (40, 30, 30), (225
 HAND = (240, 200, 170)
 try:
     FONT = ImageFont.truetype("arial.ttf", 15)
+    BIG = ImageFont.truetype("arialbd.ttf", 19)
 except OSError:
-    FONT = ImageFont.load_default()
+    FONT = BIG = ImageFont.load_default()
 
 BASE = dict(pitch=0, roll=0, yaw=0, mouth=0, puff=0, jaw=0, smileL=0, smileR=0, brow=0, teeth=0, jawfwd=0,
             clench=0, tongue=0, sniff=0, eyes=1, hand=None, handp=0, throat=0, talk=0, lip=0)
+
+
+# the red word shown at the top while a part of the gesture plays (numbered: 1., 2. ...)
+ACTION = {"puff": "puff cheeks", "eyebrow": "eyebrows up", "mouth_open": "open mouth", "jaw_left": "jaw left",
+          "jaw_right": "jaw right", "jaw_right_hold": "jaw right, hold", "molar_tap": "tap teeth",
+          "jaw_forward": "jaw forward", "clench": "clench", "smile": "smile", "chin_down_left": "chin down",
+          "chin_down_right": "chin down", "turn_left_hold": "turn left", "turn_right_hold": "turn right",
+          "back_from_left": "back", "back_from_right": "back", "nod_down": "nod", "circle_cw": "circle",
+          "circle_ccw": "circle", "rotate_left": "turn L + chin down",
+          "rotate_right": "turn R + chin down"}
 
 
 def bump(u):
@@ -62,11 +73,13 @@ P = {
     "earlobe_left": lambda u: dict(hand="earL", handp=bump(u)), "earlobe_right": lambda u: dict(hand="earR", handp=bump(u)),
     "tap_cheek_left": lambda u: dict(hand="cheekL", handp=bump(u) ** 3), "tap_cheek_right": lambda u: dict(hand="cheekR", handp=bump(u) ** 3),
     "tap_chin": lambda u: dict(hand="chin", handp=bump(u) ** 3), "scratch": lambda u: dict(hand="head", handp=0.5 + 0.5 * abs(math.sin(5 * math.pi * u))),
+    "rotate_left": lambda u: dict(yaw=-min(1, 4 * u, 4 * (1 - u)), pitch=0.9 * bump((u - 0.2) / 0.55)),
+    "rotate_right": lambda u: dict(yaw=min(1, 4 * u, 4 * (1 - u)), pitch=0.9 * bump((u - 0.2) / 0.55)),
     "rest": lambda u: dict(),
 }
 
 
-def frame(p, caption):
+def frame(p, caption, action=""):
     img = Image.new("RGB", (W, H), (255, 255, 255))
     face = Image.new("RGBA", (W, W), (0, 0, 0, 0))
     d = ImageDraw.Draw(face)
@@ -80,8 +93,8 @@ def frame(p, caption):
         if vis > 0.15:
             ex = cx + side * (rx - 4) + 10 * yaw * (side == 1 and yaw > 0 or side == -1 and yaw < 0)
             d.ellipse([ex - 10 * vis, cy - 18, ex + 10 * vis, cy + 18], fill=SKIN, outline=LINE, width=2)
-    puffw = 10 * p["puff"]
-    d.ellipse([cx - rx - puffw, cy - ry, cx + rx + puffw, cy + ry + 6 * p["jawfwd"]], fill=SKIN, outline=LINE, width=3)
+    puffw = 26 * p["puff"]
+    d.ellipse([cx - rx - puffw, cy - ry, cx + rx + puffw, cy + ry + 20 * p["jawfwd"]], fill=SKIN, outline=LINE, width=3)
     # hair
     d.chord([cx - rx, cy - ry, cx + rx, cy - ry + 95 - 30 * pitch], 180, 360, fill=(90, 60, 40))
     if p["clench"] > 0.05:                                     # jaw muscle lines
@@ -90,14 +103,16 @@ def frame(p, caption):
             for k in range(3):
                 d.line([x + side * 4 * k, cy + 25, x + side * 4 * k, cy + 45], fill=(200, 80, 80), width=2)
     # eyes + brows
-    eo = 8 * p["eyes"] + 1
+    eo = 8 * p["eyes"] * (1 + 0.45 * p["brow"]) + 1
     for side in (-1, 1):
         ex, ey = fx + side * 28, fy - 12
         d.ellipse([ex - 9, ey - eo, ex + 9, ey + eo], fill="white", outline=LINE, width=2)
         if p["eyes"] > 0.2:
             d.ellipse([ex - 4 + 4 * yaw, ey - 4 + 3 * pitch, ex + 4 + 4 * yaw, ey + 4 + 3 * pitch], fill=DARK)
-        by = ey - 20 - 12 * p["brow"]
+        by = ey - 20 - 13 * p["brow"]
         d.line([ex - 12, by + 2, ex + 12, by - 2 * side * 0], fill=LINE, width=4)
+        if p["brow"] > 0.3:                                    # red "up" arrow over each brow
+            d.polygon([(ex, by - 16), (ex - 7, by - 6), (ex + 7, by - 6)], fill=(220, 60, 60))
     # nose + sniff
     d.line([fx, fy, fx - 6, fy + 18, fx + 4, fy + 20], fill=LINE, width=2)
     if p["sniff"] > 0.05:
@@ -108,18 +123,19 @@ def frame(p, caption):
     # cheeks
     if p["puff"] > 0.05:
         for side in (-1, 1):
-            d.ellipse([fx + side * 44 - 14, fy + 18, fx + side * 44 + 14, fy + 44], fill=(245, 175, 160))
+            r = 14 + 10 * p["puff"]
+            d.ellipse([fx + side * (44 + 14 * p["puff"]) - r, fy + 31 - r, fx + side * (44 + 14 * p["puff"]) + r, fy + 31 + r], fill=(245, 175, 160))
     if abs(p["tongue"]) > 0.05:
         s = 1 if p["tongue"] > 0 else -1
         d.ellipse([fx + s * 40 - 10, fy + 26, fx + s * 40 + 10 + 4 * abs(p["tongue"]), fy + 44], fill=(240, 160, 150), outline=LINE)
     # mouth
-    mx, my = fx + 18 * p["jaw"], fy + 45 + 6 * p["jawfwd"]
+    mx, my = fx + 34 * p["jaw"], fy + 45 + 16 * p["jawfwd"]
     open_ = max(p["mouth"], p["talk"])
     if open_ > 0.05:
-        d.ellipse([mx - 18, my - 4, mx + 18, my + 30 * open_], fill=(120, 30, 40), outline=LINE, width=2)
+        d.ellipse([mx - 18, my - 4, mx + 18, my + 50 * open_], fill=(120, 30, 40), outline=LINE, width=2)
     else:
         lw = 18 + 6 * p["lip"]
-        yl, yr = my - 10 * p["smileL"], my - 10 * p["smileR"]
+        yl, yr = my - 18 * p["smileL"], my - 18 * p["smileR"]
         d.line([mx - lw, yl, mx - 6, my + 3 * max(p["smileL"], p["smileR"]), mx + 6, my + 3 * max(p["smileL"], p["smileR"]), mx + lw, yr],
                fill=LINE, width=3, joint="curve")
         if p["lip"] > 0.1:
@@ -129,7 +145,10 @@ def frame(p, caption):
         d.line([mx - 22, my - 10, mx - 30, my - 18], fill=(230, 150, 30), width=3)
         d.line([mx + 22, my - 10, mx + 30, my - 18], fill=(230, 150, 30), width=3)
     if p["jaw"] != 0:
-        d.line([cx - 20 + 18 * p["jaw"], cy + ry - 4, cx + 20 + 18 * p["jaw"], cy + ry - 4], fill=LINE, width=2)
+        d.line([cx - 24 + 34 * p["jaw"], cy + ry - 4, cx + 24 + 34 * p["jaw"], cy + ry - 4], fill=LINE, width=3)
+        s = 1 if p["jaw"] > 0 else -1
+        if abs(p["jaw"]) > 0.3:
+            d.polygon([(cx + s * 70, cy + ry - 14), (cx + s * 52, cy + ry - 22), (cx + s * 52, cy + ry - 6)], fill=(220, 60, 60))
     # hand
     if p["hand"]:
         tgt = {"earL": (cx - rx + 2, cy + 22), "earR": (cx + rx - 2, cy + 22), "cheekL": (fx - 44, fy + 30),
@@ -147,6 +166,9 @@ def frame(p, caption):
     dd = ImageDraw.Draw(img)
     if p["throat"] > 0.05:
         dd.ellipse([cx - 6, W - 20 - 8 * p["throat"], cx + 6, W - 8 - 8 * p["throat"]], outline=BLUE, width=2)
+    if action:
+        aw = dd.textlength(action, font=BIG)
+        dd.text(((W - aw) / 2, 2), action, fill=(210, 40, 40), font=BIG)
     tw = dd.textlength(caption, font=FONT)
     dd.text(((W - tw) / 2, W + 8), caption, fill=LINE, font=FONT)
     return img
@@ -154,12 +176,18 @@ def frame(p, caption):
 
 def clip(steps, caption):
     frames = []
+    k = 0
     for prim, secs in steps + [("rest", 0.8)]:
         n = max(1, int(secs * FPS))
+        if prim != "rest":
+            k += 1
+        name = ACTION.get(prim, prim.replace('_', ' ')).upper()
+        parts = sum(1 for q, _ in steps if q != "rest")
+        word = "" if prim == "rest" else (name if parts == 1 else f"{k}. {name}")
         for i in range(n):
             p = dict(BASE)
             p.update(P[prim]((i + 0.5) / n))
-            frames.append(frame(p, caption))
+            frames.append(frame(p, caption, word))
     return frames
 
 
@@ -170,8 +198,8 @@ GESTURES = {
     "tilt_2x_right": [("tilt_right", T), ("rest", 0.1), ("tilt_right", T)],
     "nod_2x_front": [("nod_down", T), ("rest", 0.1), ("nod_down", T)],
     "circle_cw": [("circle_cw", 2.0)], "circle_ccw": [("circle_ccw", 2.0)],
-    "rotate_left_chin_down": [("turn_left_hold", 0.7), ("chin_down_left", 0.8), ("back_from_left", 0.5)],
-    "rotate_right_chin_down": [("turn_right_hold", 0.7), ("chin_down_right", 0.8), ("back_from_right", 0.5)],
+    "rotate_left_chin_down": [("rotate_left", 1.8)],      # ONE merged motion: turn and, still turned, dip the chin
+    "rotate_right_chin_down": [("rotate_right", 1.8)],
     "mouth_open_2x": [("mouth_open", T), ("mouth_open", T)], "puff_cheeks_2x": [("puff", T), ("puff", T)],
     "jaw_shift_left_right": [("jaw_left", T), ("jaw_right", T)], "smile_2x": [("smile", T), ("smile", T)],
     "molar_tap_2x": [("molar_tap", D), ("molar_tap", D)], "jaw_forward_2x": [("jaw_forward", T), ("jaw_forward", T)],

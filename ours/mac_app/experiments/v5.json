@@ -58,20 +58,20 @@
       "group": "head",
       "instruction": "Turn head LEFT, then dip chin down",
       "spoken": "turn left, chin down",
-      "how": "look left, dip the chin once, come back to the front",
-      "avoid": "don't turn your body",
+      "how": "ONE merged motion: turn left and, while still turned, dip the chin; then back to the front",
+      "avoid": "not two separate moves; don't turn your body",
       "expect": 2,
-      "demo": "turn_left,nod_down"
+      "demo": "none"
     },
     {
       "id": "rotate_right_chin_down",
       "group": "head",
       "instruction": "Turn head RIGHT, then dip chin down",
       "spoken": "turn right, chin down",
-      "how": "look right, dip the chin once, come back to the front",
-      "avoid": "don't turn your body",
+      "how": "ONE merged motion: turn right and, while still turned, dip the chin; then back to the front",
+      "avoid": "not two separate moves; don't turn your body",
       "expect": 2,
-      "demo": "turn_right,nod_down"
+      "demo": "none"
     },
     {
       "id": "mouth_open_2x",

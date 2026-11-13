@@ -156,7 +156,9 @@ enum Planner {
         case .rounds:
             s.append(Step(module: module, block: b.id, kind: .message, text: b.title.uppercased(),
                           sub: b.text ?? "\(b.rounds) round(s). Condition: \(b.condition). Do the motion as soon as you hear its name, in one smooth go, then keep still until the next one."))
-            for r in 1...max(1, b.rounds) {
+            let r0 = b.roundStart ?? 0, total = r0 + b.rounds
+            for k in 1...max(1, b.rounds) {
+                let r = r0 + k      // v3.4: continues the numbering of earlier sessions of this person
                 // v3.3: a motion with "every": n is in rounds 1, 1+n, 1+2n ... only (e.g. 1x versions at half the reps)
                 let inRound = motionIDs.filter { id in (r - 1) % max(1, plan.motion(id)?.every ?? 1) == 0 }
                 var seq = inRound + Array(repeating: "idle", count: t.idlePerRound)
@@ -167,9 +169,9 @@ enum Planner {
                                   condition: b.condition, windowS: t.windowS, gapAfterS: gap(&rng), readyS: t.readyS,
                                   spoken: m == "idle" ? "nothing" : (def?.spoken ?? m),
                                   text: m == "idle" ? "NOTHING: stay natural" : (def?.instruction ?? m),
-                                  sub: [def?.card ?? "", "[\(b.condition)]  round \(r) of \(b.rounds)"].filter { !$0.isEmpty }.joined(separator: "\n")))
+                                  sub: [def?.card ?? "", "[\(b.condition)]  round \(r) of \(total)"].filter { !$0.isEmpty }.joined(separator: "\n")))
                 }
-                if r % t.breakEveryRounds == 0 && r < b.rounds {
+                if k % t.breakEveryRounds == 0 && k < b.rounds {
                     s.append(Step(module: module, block: b.id, kind: .message, text: "SHORT BREAK",
                                   sub: "Relax, keep the AirPods in. Continue when ready."))
                 }
@@ -254,7 +256,7 @@ enum Planner {
 
     // ------------------------------------------------------------------ the session
     static func plan(study: StudyPlan, participant: Participant, device: String, budgetMin: Double,
-                     seed: UInt64, fillWithExtraRounds: Bool = true) -> SessionPlan {
+                     seed: UInt64, fillWithExtraRounds: Bool = true, doneRounds: [String: Int] = [:]) -> SessionPlan {
         var rng = SeededRNG(seed: seed)
         let t = study.timing
         var warnings: [String] = []
@@ -267,6 +269,18 @@ enum Planner {
         let doneCore = participant.coreBlocksDone(device: device)
         var coreTodo = coreOrder(study.core, groups: study.counterbalance, number: participant.number)
             .filter { !doneCore.contains($0.id) }
+        // v3.4 continue a person: rounds already recorded in earlier (ended or incomplete) sessions of this experiment
+        // on this device are not planned again; only the missing ones are, numbered on from there.
+        for i in coreTodo.indices where coreTodo[i].kind == .rounds {
+            let d = min(doneRounds[coreTodo[i].id] ?? 0, coreTodo[i].rounds)
+            guard d > 0 else { continue }
+            let left = coreTodo[i].rounds - d
+            warnings.append("Continuing: \(d) of \(coreTodo[i].rounds) rounds of \"\(coreTodo[i].title)\" already recorded in earlier sessions, \(left) left.")
+            coreTodo[i].roundStart = d
+            coreTodo[i].rounds = left
+            if let m = coreTodo[i].minRounds { coreTodo[i].minRounds = min(m, left) }
+        }
+        coreTodo.removeAll { $0.kind == .rounds && $0.rounds <= 0 }
         // v3.1: short on time -> cut rounds blocks that allow it (minRounds), the longest first, one round at a time.
         // Rounds hold every motion once, so a cut session still has the same count for every motion.
         let rngAtCore = rng

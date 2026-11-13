@@ -14,6 +14,9 @@ xcrun --sdk iphoneos swiftc -O -parse-as-library -target arm64-apple-ios16.0 -sd
 cp Info-iOS.plist "$APP/Info.plist"
 cp live_model.json "$APP/live_model.json"      # built-in live recogniser model
 [ -f forest_model.json ] && cp forest_model.json "$APP/forest_model.json"   # built-in Forest mode model
+mkdir -p "$APP/experiments/media"               # v3.4: shipped experiments + demo clips
+cp ../experiments/*.json "$APP/experiments/"
+cp ../experiments/media/*.gif "$APP/experiments/media/"
 printf 'APPL????' > "$APP/PkgInfo"
 (cd build_ios && zip -qry ../GestureCollector-iOS.ipa Payload)
 rm -rf build_ios

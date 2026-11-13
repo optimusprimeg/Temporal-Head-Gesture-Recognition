@@ -1,7 +1,7 @@
 {
   "name": "v5 plus (1x, extras, near-miss)",
   "version": "v5-plus-1",
-  "about": "The 30 v5 items + single (1x) versions at half the reps + our extra gestures + near-miss cues (NOT commands) in random rounds, then 3 x 60 s idle; extra modules fill the time (near-miss block first). About 6 min per round. Converts to the v5 CSV with app_to_v5_csv.py (extra labels kept as they are).",
+  "about": "The 30 v5 items + single (1x) versions at half the reps + our extra (candidate) gestures every 3rd round + near-miss cues (NOT commands) in random rounds, then 3 x 60 s idle; extra modules fill the time (near-miss block first). About 6 min per round. Converts to the v5 CSV with app_to_v5_csv.py (extra labels kept as they are).",
   "motions": [
     {
       "id": "tilt_2x_left",
@@ -58,20 +58,20 @@
       "group": "head",
       "instruction": "Turn head LEFT, then dip chin down",
       "spoken": "turn left, chin down",
-      "how": "look left, dip the chin once, come back to the front",
-      "avoid": "don't turn your body",
+      "how": "ONE merged motion: turn left and, while still turned, dip the chin; then back to the front",
+      "avoid": "not two separate moves; don't turn your body",
       "expect": 2,
-      "demo": "turn_left,nod_down"
+      "demo": "none"
     },
     {
       "id": "rotate_right_chin_down",
       "group": "head",
       "instruction": "Turn head RIGHT, then dip chin down",
       "spoken": "turn right, chin down",
-      "how": "look right, dip the chin once, come back to the front",
-      "avoid": "don't turn your body",
+      "how": "ONE merged motion: turn right and, while still turned, dip the chin; then back to the front",
+      "avoid": "not two separate moves; don't turn your body",
       "expect": 2,
-      "demo": "turn_right,nod_down"
+      "demo": "none"
     },
     {
       "id": "mouth_open_2x",
@@ -339,7 +339,8 @@
       "how": "two tiny quick tilts, as if aiming",
       "avoid": "keep it small",
       "expect": 2,
-      "demo": "tilt_left,tilt_left"
+      "demo": "tilt_left,tilt_left",
+      "every": 3
     },
     {
       "id": "small_tilt_2x_right",
@@ -349,7 +350,8 @@
       "how": "two tiny quick tilts, as if aiming",
       "avoid": "keep it small",
       "expect": 2,
-      "demo": "tilt_right,tilt_right"
+      "demo": "tilt_right,tilt_right",
+      "every": 3
     },
     {
       "id": "tilt_hold_left",
@@ -359,7 +361,8 @@
       "how": "tilt, count one, come back",
       "avoid": "don't bounce",
       "expect": 1,
-      "demo": "tilt_left"
+      "demo": "tilt_left",
+      "every": 3
     },
     {
       "id": "tilt_hold_right",
@@ -369,7 +372,8 @@
       "how": "tilt, count one, come back",
       "avoid": "don't bounce",
       "expect": 1,
-      "demo": "tilt_right"
+      "demo": "tilt_right",
+      "every": 3
     },
     {
       "id": "smirk_left",
@@ -379,7 +383,8 @@
       "how": "only the left corner",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "smirk_right",
@@ -389,7 +394,8 @@
       "how": "only the right corner",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "earlobe_pull_left",
@@ -399,7 +405,8 @@
       "how": "two fingers, a short gentle pull",
       "avoid": "don't touch the AirPod",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "earlobe_pull_right",
@@ -409,7 +416,8 @@
       "how": "two fingers, a short gentle pull",
       "avoid": "don't touch the AirPod",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "tongue_cheek_left",
@@ -419,7 +427,8 @@
       "how": "mouth closed, tongue bulges the cheek",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "tongue_cheek_right",
@@ -429,7 +438,8 @@
       "how": "mouth closed, tongue bulges the cheek",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "sniff_2x",
@@ -439,7 +449,8 @@
       "how": "two short sniffs through the nose",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "tap_cheek_2x_left",
@@ -449,7 +460,8 @@
       "how": "two light taps",
       "avoid": "don't touch the AirPod",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "tap_chin_2x",
@@ -459,7 +471,8 @@
       "how": "two light taps under the chin",
       "avoid": "",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "every": 3
     },
     {
       "id": "slow_peek_left",
