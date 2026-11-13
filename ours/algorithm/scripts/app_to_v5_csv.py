@@ -62,7 +62,7 @@ def unwrap_range_deg(v):
     return math.degrees(np.ptp(np.unwrap(v))) if len(v) > 1 else 0.0
 
 
-def convert(folder: Path, subject: str):
+def convert(folder: Path, subject: str, device: str | None = None):
     meta = json.loads((folder / "session.json").read_text(encoding="utf-8"))
     exp = json.loads((folder / "experiment.json").read_text(encoding="utf-8"))
     groups = {m["id"]: m.get("group", "head") for m in exp["motions"]}
@@ -149,7 +149,7 @@ def convert(folder: Path, subject: str):
         pos[(r.block, rnd)] = pos.get((r.block, rnd), 0) + 1
         meta_row = {"label": label, "group": group, "idle_variant": variant,
                     "take_id": f"{subject}_{session}_{take_no:04d}", "rep": rep, "subject_id": subject,
-                    "session_id": session, "device": meta.get("device", ""), "window_s": float(r.window_s),
+                    "session_id": session, "device": device or meta.get("device", ""), "window_s": float(r.window_s),
                     "beep_phone_ns": str(start), "n_in_window": len(win), "coverage": f"{coverage:.3f}",
                     "max_gap_s": f"{max_gap:.3f}", "side_switch": int(len(sides) > 1), "quality": quality,
                     "gyro_rms_dps": f"{gyro:.2f}", "orient_range_deg": f"{orient:.1f}", "round_no": rnd,
@@ -172,9 +172,11 @@ if __name__ == "__main__":
     ap.add_argument("session")
     ap.add_argument("--subject", required=True, help="subject id as in the v5 data, e.g. S07")
     ap.add_argument("--out")
+    ap.add_argument("--device", help="the AirPods model really worn, if the app logged the wrong one "
+                    "(v3.6 picked it by participant number), e.g. \"AirPods Pro 2\"")
     a = ap.parse_args()
     folder = open_session(Path(a.session))
-    df, counts = convert(folder, a.subject)
+    df, counts = convert(folder, a.subject, a.device)
     out = Path(a.out or f"dataset_{a.subject}_app.csv")
     if out.exists():
         old_cols = pd.read_csv(out, nrows=0).columns.tolist()

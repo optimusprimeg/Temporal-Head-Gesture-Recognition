@@ -7,6 +7,12 @@ records continuously, and resumes after a crash.
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
 
+## v3.7.1: crash fix (camera preview)
+- v3.7.0 crashed on macOS 27 (M1) inside SwiftUI's hit testing of a trackpad pressure event, with the camera on
+  (crash report: EXC_BAD_ACCESS in MainActor.assumeIsolated <- NSViewResponder <- NSHostingView.hitTest). The
+  camera preview is now a normal layer-backed view with the preview as a sublayer that never takes clicks, and the
+  preview and 3D heads are `allowsHitTesting(false)` (display only).
+
 ## New in v3.7: counting fixes, one earbud either side, Pause on top, optional scene video
 Fixes to v3.4-3.6 design mistakes (found in an audit of the code and P01's data):
 - **AirPods model no longer changes by itself.** The start screen used to pick the model by the old two-model

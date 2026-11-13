@@ -111,8 +111,11 @@ Status labels: **SOLID** (several people/datasets, repeatable), **LIKELY** (cons
   cues.csv directly must keep only the last try per trial. App v3.6 counted both toward targets (fixed in v3.7).
 - Never open data CSVs in Excel and save (timestamps break).
 - `app_to_v5_csv.py` before 2026-11-14 wrote an EMPTY `sensor_location` column (off-by-one in the copied
-  columns). Re-convert any app session converted before that date. P06 (Yash, app v3.6) re-converted: LEFT bud,
+  columns). Re-convert any app session converted before that date. S12 (Yash, app v3.6) re-converted: LEFT bud,
   so its tilt/turn signs are mirrored vs the teammates' right-bud files.
+- Device labels in app v3.4-3.6 sessions can be WRONG: the app pre-picked the AirPods model by participant number
+  (odd = Pro 2, even = AirPods 5) and people did not change it. Yash's session says "AirPods 5" but was AirPods
+  Pro 2; S12 was converted with `--device "AirPods Pro 2"`. Ask the experimenter before trusting `device`.
 - Some v5 gestures are ONE merged motion (rotate_*_chin_down, circles, jaw_shift_left_right, tilt_hold): never
   split or map them to single motions. Combos (X_then_Y) are two parts by design.
 
@@ -186,6 +189,43 @@ Status labels: **SOLID** (several people/datasets, repeatable), **LIKELY** (cons
 
 ---
 
+## F. New feature ideas on all four people (2026-11-14)
+Data: S03, S8, S9 (teammates, RIGHT bud) + S12 (Yash, app v3.6, LEFT bud); 17 face/combo/swallow classes all four
+have (>= 3 good takes each), 710 takes. Random forest 300 trees, one seed. Script `scripts/new_features_study.py`,
+numbers `results/new_features_study.csv`. Base = our 25 + teammates' 214.
+
+| features | within person | new person (LOPO) | swapped combos, within | swapped combos, LOPO |
+|---|---|---|---|---|
+| base | 0.766 | 0.297 | 0.76 | 0.24 |
+| + vibration bands | 0.773 | 0.293 | 0.77 | 0.21 |
+| **+ two halves** | **0.794** | **0.335** | **0.81** | **0.29** |
+| + bands + halves | 0.776 | 0.323 | 0.81 | 0.29 |
+| base, idle-normalised | 0.773 | 0.224 | 0.76 | 0.21 |
+| + halves, idle-normalised | 0.798 | 0.240 | 0.80 | 0.25 |
+
+### F18. Two-halves features help combos and new people. HINT (4 people, one seed)
+- Splitting a take at its quietest point and describing each part separately: within +2.8 points, new person
+  +3.8 (3 of 4 people better: S03 .28->.32, S9 .35->.44, S12 .25->.33; S8 .30->.25), swapped-combo accuracy
+  .76->.81 within and .24->.29 for a new person. Why: X_then_Y vs Y_then_X differ only in ORDER, which whole-window
+  statistics throw away (F16). Keep it; next try the split from the cue timing or a 3-part split.
+
+### F19. Vibration bands add nothing at 50 Hz. LIKELY
+- Band energies up to 25 Hz: within +0.7, new person -0.4 (noise). The AirPods stream is 50 Hz, so jaw / teeth
+  vibration above 25 Hz is never seen, and the 214 features already cover the low bands. Drop unless a higher-rate
+  stream exists.
+
+### F20. Normalising by the person's own still idle hurts transfer. LIKELY
+- (f - idle median) / idle MAD: within unchanged, new person .297 -> .224. S8 collapses (.30 -> .05): S8's 60 s
+  "still" idle has gyro RMS 6.3 dps (face gestures ~9), i.e. they moved during it, so the baseline is wrong. Even
+  without S8 it does not help (S03/S9/S12 roughly flat or lower). A single noise floor is not enough: per-feature
+  z over the person's own unlabeled takes (F15) is the better label-free fix. If a baseline is used, check its
+  gyro RMS first.
+- Data note: units. The teammates' files have userAcceleration in **g** and gravity in m/s^2; the app wrote acc in
+  m/s^2 (9.8x larger). `app_to_v5_csv.py` now converts acc to g (2026-11-14); earlier converted app files must be
+  re-made before merging with teammates' data.
+
+---
+
 ## E. Ideas to test (OPEN)
 
 - Curve A at full N, per gesture, with confidence intervals (bootstrap over people).
@@ -208,7 +248,8 @@ Status labels: **SOLID** (several people/datasets, repeatable), **LIKELY** (cons
 - 2026-11-13: file created from all work so far (F1-F17).
 - 2026-11-13: F10 updated (gravity convention checked across app and v5 files; earbud side rule).
 - 2026-11-14: F10: retakes in app data; earbud side now logged, not required (app v3.7).
-- 2026-11-14: F10: converter sensor_location bug fixed; P06 converted to v5 format (dataset_P06.csv).
+- 2026-11-14: F10: converter sensor_location bug fixed; Yash converted to v5 format (dataset_S12.csv).
+- 2026-11-14: F18-F20 added (two halves / vibration bands / idle baseline on S03, S8, S9, S12); acc units note.
 
 ## Experiment-side notes (what the app records for the paper, v3.5-3.7)
 - `feedback.json` per session: easy-to-do and OK-in-public (1-5) per gesture group + the hardest gesture in the

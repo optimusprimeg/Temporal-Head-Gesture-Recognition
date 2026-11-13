@@ -687,6 +687,7 @@ struct CameraAim: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             CameraPreview(session: cam.session)
+                .allowsHitTesting(false)
                 .frame(width: 240, height: 160)
                 .background(Color.black)
                 .cornerRadius(6)

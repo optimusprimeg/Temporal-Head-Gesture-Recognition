@@ -242,18 +242,30 @@ final class CameraPreviewModel: ObservableObject {
 }
 
 #if os(macOS)
+/// v3.7.1: an ordinary layer-BACKED view with the preview as a sublayer (not a layer-hosting view), and it never
+/// takes part in hit testing: the v3.7.0 crash (macOS 27, SwiftUI hit test of a trackpad pressure event) was in
+/// SwiftUI's hit testing of embedded AppKit views while the camera was on.
+final class PreviewNSView: NSView {
+    let preview: AVCaptureVideoPreviewLayer
+    init(session: AVCaptureSession) {
+        preview = AVCaptureVideoPreviewLayer(session: session)
+        super.init(frame: .zero)
+        wantsLayer = true
+        preview.videoGravity = .resizeAspect
+        layer?.addSublayer(preview)
+    }
+    required init?(coder: NSCoder) { nil }
+    override func layout() {
+        super.layout()
+        preview.frame = bounds
+    }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 struct CameraPreview: NSViewRepresentable {
     let session: AVCaptureSession
-    func makeNSView(context: Context) -> NSView {
-        let v = NSView()
-        let layer = AVCaptureVideoPreviewLayer(session: session)
-        layer.videoGravity = .resizeAspect
-        layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        v.layer = layer          // layer-hosting view: set the layer first, then wantsLayer
-        v.wantsLayer = true
-        return v
-    }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func makeNSView(context: Context) -> PreviewNSView { PreviewNSView(session: session) }
+    func updateNSView(_ nsView: PreviewNSView, context: Context) {}
 }
 #else
 final class PreviewUIView: UIView {

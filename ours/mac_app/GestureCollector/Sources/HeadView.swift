@@ -143,7 +143,7 @@ struct MotionDemo: View {
     var body: some View {
         TimelineView(.animation) { ctx in
             let a = MotionPose.sequenceAngles(motion, t: ctx.date.timeIntervalSinceReferenceDate)
-            Head3D(pitch: a.0, roll: a.1, yaw: a.2, tint: .systemBlue)
+            Head3D(pitch: a.0, roll: a.1, yaw: a.2, tint: .systemBlue).allowsHitTesting(false)
         }
     }
 }
@@ -157,6 +157,7 @@ struct LiveHead: View {
         let a = recorder.angles
         Head3D(pitch: -(a.pitch - reference.pitch), roll: a.roll - reference.roll, yaw: -(a.yaw - reference.yaw),
                tint: .systemOrange)
+            .allowsHitTesting(false)   // v3.7.1: display only (see PreviewNSView)
     }
 }
 
@@ -172,7 +173,7 @@ struct TwoHeads: View {
             VStack {
                 Text("DO THIS").font(.headline).foregroundColor(.blue)
                 if let c = clip, FileManager.default.fileExists(atPath: c.path) { AnimatedClip(url: c) }
-                else if MotionPose.isMotion(motion) { MotionDemo(motion: motion) } else { Head3D(tint: .systemBlue) }
+                else if MotionPose.isMotion(motion) { MotionDemo(motion: motion) } else { Head3D(tint: .systemBlue).allowsHitTesting(false) }
             }.frame(width: Platform.isPhone ? 150 : 230, height: Platform.isPhone ? 180 : 260)
             VStack {
                 Text("YOU").font(.headline).foregroundColor(.orange)

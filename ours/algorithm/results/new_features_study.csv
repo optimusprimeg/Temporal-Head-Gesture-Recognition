@@ -1,4 +1,4 @@
-features,n_feat,within_S03,within_S8,within_S9,within_S10,within,within_swap,within_twin,lopo_S03,lopo_S8,lopo_S9,lopo_S10,lopo,lopo_right3,lopo_swap,lopo_twin
+features,n_feat,within_S03,within_S8,within_S9,within_S12,within,within_swap,within_twin,lopo_S03,lopo_S8,lopo_S9,lopo_S12,lopo,lopo_right3,lopo_swap,lopo_twin
 base,235,0.8882,0.6957,0.8333,0.6474,0.7662,0.7619,0.0952,0.2779,0.3043,0.3509,0.2543,0.2969,0.3111,0.2381,0.0913
 base+bands,301,0.8882,0.7283,0.8158,0.659,0.7728,0.7738,0.0913,0.2749,0.3261,0.307,0.2659,0.2935,0.3027,0.2143,0.119
 base+halves,288,0.8822,0.75,0.8509,0.6936,0.7942,0.8056,0.0794,0.3233,0.25,0.4386,0.3295,0.3353,0.3373,0.2937,0.0992
