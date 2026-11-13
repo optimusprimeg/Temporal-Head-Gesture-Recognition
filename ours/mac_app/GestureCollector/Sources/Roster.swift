@@ -21,6 +21,7 @@ struct Participant: Codable, Hashable, Identifiable {
     var modulesDone: [String] = []            // module ids done (any device)
     var modulesByDevice: [String: [String]] = [:]   // v3: device -> module ids done on that device
     var sessions: [SessionRecord] = []
+    var selections: [String: [String: Int]] = [:]   // v3.6: experiment name -> chosen motion -> target reps
 
     var id: Int { number }
     var code: String { String(format: "P%02d", number) }
@@ -41,6 +42,7 @@ struct Participant: Codable, Hashable, Identifiable {
         modulesDone = try c.decodeIfPresent([String].self, forKey: .modulesDone) ?? []
         modulesByDevice = try c.decodeIfPresent([String: [String]].self, forKey: .modulesByDevice) ?? [:]
         sessions = try c.decodeIfPresent([SessionRecord].self, forKey: .sessions) ?? []
+        selections = try c.decodeIfPresent([String: [String: Int]].self, forKey: .selections) ?? [:]
     }
 
     func coreBlocksDone(device: String) -> [String] { coreDone[device] ?? [] }

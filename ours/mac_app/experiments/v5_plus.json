@@ -613,6 +613,152 @@
     "combo",
     "touch"
   ],
+  "presets": [
+    {
+      "name": "All v5",
+      "motions": [
+        "tilt_2x_left",
+        "tilt_2x_right",
+        "nod_2x_front",
+        "circle_cw",
+        "circle_ccw",
+        "rotate_left_chin_down",
+        "rotate_right_chin_down",
+        "mouth_open_2x",
+        "puff_cheeks_2x",
+        "jaw_shift_left_right",
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_forward_2x",
+        "jaw_clench_double",
+        "eyebrow_up_down_2x",
+        "eyebrow_then_mouth_open",
+        "mouth_open_then_eyebrow",
+        "eyebrow_then_puff_cheeks",
+        "mouth_open_then_puff_cheeks",
+        "puff_cheeks_then_eyebrow",
+        "jaw_left_then_eyebrow",
+        "eyebrow_then_jaw_left",
+        "jaw_right_then_eyebrow",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow",
+        "long_idle"
+      ]
+    },
+    {
+      "name": "Micro only",
+      "motions": [
+        "mouth_open_2x",
+        "puff_cheeks_2x",
+        "jaw_shift_left_right",
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_forward_2x",
+        "jaw_clench_double",
+        "eyebrow_up_down_2x",
+        "eyebrow_then_mouth_open",
+        "mouth_open_then_eyebrow",
+        "eyebrow_then_puff_cheeks",
+        "mouth_open_then_puff_cheeks",
+        "puff_cheeks_then_eyebrow",
+        "jaw_left_then_eyebrow",
+        "eyebrow_then_jaw_left",
+        "jaw_right_then_eyebrow",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow",
+        "long_idle"
+      ]
+    },
+    {
+      "name": "Head only",
+      "motions": [
+        "tilt_2x_left",
+        "tilt_2x_right",
+        "nod_2x_front",
+        "circle_cw",
+        "circle_ccw",
+        "rotate_left_chin_down",
+        "rotate_right_chin_down",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Weak ones",
+      "motions": [
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_clench_double",
+        "jaw_right_then_eyebrow",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "1x + 2x",
+      "motions": [
+        "tilt_1x_left",
+        "tilt_1x_right",
+        "nod_1x_front",
+        "mouth_open_1x",
+        "puff_cheeks_1x",
+        "tilt_2x_left",
+        "tilt_2x_right",
+        "nod_2x_front",
+        "mouth_open_2x",
+        "puff_cheeks_2x",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Extras pilot",
+      "motions": [
+        "small_tilt_2x_left",
+        "small_tilt_2x_right",
+        "tilt_hold_left",
+        "tilt_hold_right",
+        "smirk_left",
+        "smirk_right",
+        "earlobe_pull_left",
+        "earlobe_pull_right",
+        "tongue_cheek_left",
+        "tongue_cheek_right",
+        "sniff_2x",
+        "tap_cheek_2x_left",
+        "tap_chin_2x",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Near-miss",
+      "motions": [
+        "slow_peek_left",
+        "slow_peek_right",
+        "nod_while_talking",
+        "scratch_head",
+        "yawn",
+        "deep_breath",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    }
+  ],
   "practicePerMotionFirst": 1,
   "practicePerMotionLater": 0,
   "core": [

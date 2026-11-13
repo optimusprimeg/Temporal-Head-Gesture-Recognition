@@ -7,6 +7,17 @@ records continuously, and resumes after a crash.
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
 
+## New in v3.6: choose gestures and target reps per person
+- Start screen, under the chosen person: **"Gestures for this session"**. Presets from the experiment file
+  (`"presets"`: v5 has All v5 / Micro only / Head only / Weak ones; v5_plus adds 1x + 2x / Extras pilot / Near-miss),
+  then tick / untick single gestures (idles too) and the long idles, and set each gesture's **target** = good reps
+  this person should have in total. Default target: the motion's `"target"`, else core rounds / `every`.
+- **Top-up per gesture:** the app counts this person's good reps per gesture (rounds trials done, minus those marked
+  wrong) in earlier sessions of the same experiment on the same AirPods, and plans only what is missing. A gesture
+  with n reps missing is spread evenly over the rounds, so a session cut short keeps every gesture's share.
+- The choice is remembered per person (roster.json `selections`) and saved in session.json (`targets`,
+  `longIdle`); the session's `experiment.json` holds only the chosen gestures.
+
 ## New in v3.5: experimenter tools
 - **Right earbud only** (`"earbud": "right"` in v5 / v5_plus, as collector_v5): the device check and the run screen
   warn when the other AirPod streams. Left vs right flips tilt/turn signs, so mixed sides would not merge.

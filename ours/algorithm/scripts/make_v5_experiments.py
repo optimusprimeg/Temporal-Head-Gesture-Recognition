@@ -170,13 +170,33 @@ def write(name, plan):
     print(name, len(ids), "motions")
 
 
+def ids(ms, *groups):
+    return [m["id"] for m in ms if not groups or m["group"] in groups]
+
+
+IDLES = [m["id"] for m in V5 if m["id"].startswith("idle_")]
+WEAK = ["smile_2x", "molar_tap_2x", "jaw_clench_double", "jaw_right_then_eyebrow"]
+# v3.6 presets on the app's start screen ("long_idle" = include the 3 x 60 s idles)
+PRESETS_V5 = [
+    {"name": "All v5", "motions": ids(V5) + ["long_idle"]},
+    {"name": "Micro only", "motions": ids(V5, "face", "combo") + IDLES + ["long_idle"]},
+    {"name": "Head only", "motions": ids(V5, "head") + IDLES},
+    {"name": "Weak ones", "motions": WEAK + IDLES},
+]
+PRESETS_PLUS = PRESETS_V5 + [
+    {"name": "1x + 2x", "motions": ids(ONE_X) + [m for m in ids(V5) if any(m.startswith(k) for k in
+                                                ("tilt_2x", "nod_2x", "mouth_open_2x", "puff_cheeks_2x"))] + IDLES},
+    {"name": "Extras pilot", "motions": ids(EXTRA) + IDLES},
+    {"name": "Near-miss", "motions": ids(NEAR_MISS) + IDLES},
+]
+
 OUT.mkdir(parents=True, exist_ok=True)
 write("v5.json", {
     "name": "Teammates v5 (rounds)", "version": "v5-rounds-1",
     "about": "collector_v5's 30 items with the same labels: 23 gestures + 4 short idles in random rounds (each once per "
              "round, 3 s window), then 3 x 60 s idle. Converts to the v5 CSV with app_to_v5_csv.py. About 3.5 min per round.",
     "motions": V5, "commands": [], "timing": TIMING, "practicePerMotionFirst": 1, "practicePerMotionLater": 0,
-    "earbud": "right", "feedbackGroups": ["head", "face", "combo"],
+    "earbud": "right", "feedbackGroups": ["head", "face", "combo"], "presets": PRESETS_V5,
     "core": [{"id": "core.rounds", "kind": "rounds", "title": "Rounds", "condition": "sitting", "rounds": 20, "minRounds": 2},
              LONG_IDLE],
     "modules": [], "fillModule": None})
@@ -208,7 +228,7 @@ write("v5_plus.json", {
              "commands) in random rounds, then 3 x 60 s idle; extra modules fill the time (near-miss block first). "
              "About 6 min per round. Converts to the v5 CSV with app_to_v5_csv.py (extra labels kept as they are).",
     "motions": V5 + ONE_X + EXTRA + NEAR_MISS, "commands": [], "timing": TIMING,
-    "earbud": "right", "feedbackGroups": ["head", "face", "combo", "touch"],
+    "earbud": "right", "feedbackGroups": ["head", "face", "combo", "touch"], "presets": PRESETS_PLUS,
     "practicePerMotionFirst": 1, "practicePerMotionLater": 0,
     "core": [{"id": "core.rounds", "kind": "rounds", "title": "Rounds", "condition": "sitting", "rounds": 12, "minRounds": 2},
              LONG_IDLE],

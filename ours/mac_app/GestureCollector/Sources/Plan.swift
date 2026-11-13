@@ -30,6 +30,8 @@ struct MotionDef: Codable, Hashable {
     var every: Int? = nil     // rounds: in every n-th round only (2 = half the reps); nil = every round
     var check: String? = nil  // the single head motion our rules/model call it (tilt_1x_left -> "tilt_left")
     var ref: String? = nil    // v3.4: web link to real examples ("Confused?" button); a link only, nothing is stored
+    var target: Int? = nil    // v3.6: default good reps per person (the experimenter can change it per person);
+                              // nil = the core rounds count (divided by "every")
 
     init(id: String, instruction: String, spoken: String, expect: Int? = nil, group: String? = nil, demo: String? = nil) {
         self.id = id; self.instruction = instruction; self.spoken = spoken
@@ -48,6 +50,7 @@ struct MotionDef: Codable, Hashable {
         every = try c.decodeIfPresent(Int.self, forKey: .every)
         check = try c.decodeIfPresent(String.self, forKey: .check)
         ref = try c.decodeIfPresent(String.self, forKey: .ref)
+        target = try c.decodeIfPresent(Int.self, forKey: .target)
     }
     /// how + avoid as one line for the screen ("" if neither is set)
     var card: String {
@@ -55,6 +58,11 @@ struct MotionDef: Codable, Hashable {
     }
     var expectedCount: Int { expect ?? 1 }
     var isHead: Bool { (group ?? "head") == "head" }
+}
+
+struct PresetDef: Codable, Hashable {
+    var name: String
+    var motions: [String]   // motion ids; "long_idle" = include the 60 s idles
 }
 
 struct CommandDef: Codable, Hashable {
@@ -88,6 +96,8 @@ struct BlockDef: Codable, Hashable {
     var estimateS: Double? = nil    // free: expected duration (time planning only)
     var minRounds: Int? = nil       // rounds: may be cut down to this many when the time is short (nil = never cut)
     var roundStart: Int? = nil      // v3.4 (planner only): rounds already recorded in earlier sessions; numbering continues
+    var need: [String: Int]? = nil  // v3.6 (planner only): reps still needed per motion; round k of needRounds holds
+    var needRounds: Int? = nil      //   motion m when floor(k*n/needRounds) steps up (n = its need): spread evenly
 
     init(id: String, kind: BlockKind, title: String, condition: String = "sitting", rounds: Int = 0, n: Int = 0,
          lists: Int = 0, gaps: [Double] = [], pairsPerGap: Int = 0, activities: [Activity] = [],
@@ -186,8 +196,38 @@ struct StudyPlan: Codable, Hashable {
     var fillModule: String? = "G"
     var earbud: String? = nil             // v3.5: "right" / "left" = record with that AirPod only (teammates: right)
     var feedbackGroups: [String]? = nil   // v3.5: end-of-session 1-5 ratings, one per motion group (nil = none)
+    var presets: [PresetDef]? = nil       // v3.6: named gesture sets for the start screen ("long_idle" = the 60 s idles)
 
     func motion(_ id: String) -> MotionDef? { motions.first { $0.id == id } }
+
+    /// v3.6: the core rounds block's planned rounds (for default targets).
+    var coreRounds: Int { core.first { $0.kind == .rounds }?.rounds ?? 10 }
+
+    /// v3.6: default good reps per motion: its "target", else the core rounds divided by its "every".
+    var defaultTargets: [String: Int] {
+        Dictionary(motions.map { m in (m.id, m.target ?? max(1, coreRounds / max(1, m.every ?? 1))) },
+                   uniquingKeysWith: { a, _ in a })
+    }
+
+    /// v3.6: does the experiment have the long 60 s idles (a negatives block in the core)?
+    var hasLongIdle: Bool { core.contains { $0.kind == .negatives } }
+
+    /// v3.6: this experiment cut down to the chosen motions (and without the long idles if they are off).
+    /// The result is what runs and what is saved as the session's experiment.json.
+    func selecting(_ ids: Set<String>, longIdle: Bool) -> StudyPlan {
+        var p = self
+        p.motions = motions.filter { ids.contains($0.id) }
+        func cut(_ b: BlockDef) -> BlockDef {
+            var b = b
+            if let m = b.motions { b.motions = m.filter { ids.contains($0) } }
+            return b
+        }
+        p.core = core.filter { longIdle || $0.kind != .negatives }.map(cut)
+            .filter { $0.kind != .rounds || ($0.motions ?? p.motions.map(\.id)).isEmpty == false }
+        p.modules = modules.map { m in var m = m; m.blocks = m.blocks.map(cut); return m }
+        p.commands = commands.filter { ids.contains($0.first) && ids.contains($0.then) }
+        return p
+    }
 
     init(name: String, about: String, version: String, motions: [MotionDef], commands: [CommandDef], timing: Timing,
          practicePerMotionFirst: Int, practicePerMotionLater: Int, core: [BlockDef], modules: [ModuleDef],
@@ -218,6 +258,7 @@ struct StudyPlan: Codable, Hashable {
         fillModule = try c.decodeIfPresent(String.self, forKey: .fillModule) ?? "G"
         earbud = try c.decodeIfPresent(String.self, forKey: .earbud)
         feedbackGroups = try c.decodeIfPresent([String].self, forKey: .feedbackGroups)
+        presets = try c.decodeIfPresent([PresetDef].self, forKey: .presets)
     }
 
     /// Everything wrong with the file (empty = fine).

@@ -323,6 +323,96 @@
     "face",
     "combo"
   ],
+  "presets": [
+    {
+      "name": "All v5",
+      "motions": [
+        "tilt_2x_left",
+        "tilt_2x_right",
+        "nod_2x_front",
+        "circle_cw",
+        "circle_ccw",
+        "rotate_left_chin_down",
+        "rotate_right_chin_down",
+        "mouth_open_2x",
+        "puff_cheeks_2x",
+        "jaw_shift_left_right",
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_forward_2x",
+        "jaw_clench_double",
+        "eyebrow_up_down_2x",
+        "eyebrow_then_mouth_open",
+        "mouth_open_then_eyebrow",
+        "eyebrow_then_puff_cheeks",
+        "mouth_open_then_puff_cheeks",
+        "puff_cheeks_then_eyebrow",
+        "jaw_left_then_eyebrow",
+        "eyebrow_then_jaw_left",
+        "jaw_right_then_eyebrow",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow",
+        "long_idle"
+      ]
+    },
+    {
+      "name": "Micro only",
+      "motions": [
+        "mouth_open_2x",
+        "puff_cheeks_2x",
+        "jaw_shift_left_right",
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_forward_2x",
+        "jaw_clench_double",
+        "eyebrow_up_down_2x",
+        "eyebrow_then_mouth_open",
+        "mouth_open_then_eyebrow",
+        "eyebrow_then_puff_cheeks",
+        "mouth_open_then_puff_cheeks",
+        "puff_cheeks_then_eyebrow",
+        "jaw_left_then_eyebrow",
+        "eyebrow_then_jaw_left",
+        "jaw_right_then_eyebrow",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow",
+        "long_idle"
+      ]
+    },
+    {
+      "name": "Head only",
+      "motions": [
+        "tilt_2x_left",
+        "tilt_2x_right",
+        "nod_2x_front",
+        "circle_cw",
+        "circle_ccw",
+        "rotate_left_chin_down",
+        "rotate_right_chin_down",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Weak ones",
+      "motions": [
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_clench_double",
+        "jaw_right_then_eyebrow",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    }
+  ],
   "core": [
     {
       "id": "core.rounds",

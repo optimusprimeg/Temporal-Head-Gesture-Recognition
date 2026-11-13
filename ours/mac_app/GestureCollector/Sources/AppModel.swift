@@ -25,6 +25,12 @@ final class AppModel: ObservableObject {
     @Published var message = ""
     @Published var reference = HeadAngles()
     @Published var live: LiveSession?
+    // v3.6 gestures for this session: chosen motion -> target good reps (absent = off), the long idles, and how many
+    // good reps this person already has per motion (this experiment, this AirPods model)
+    @Published var targets: [String: Int] = [:]
+    @Published var longIdle = true
+    @Published var doneSoFar: [String: Int] = [:]
+    private var sessionStudy: StudyPlan?
 
     let recorder = Recorder()
     let roster: RosterStore
@@ -108,6 +114,8 @@ final class AppModel: ObservableObject {
         plan = p
         planSource = "\(p.name), \(file) (version \(p.version))"
         UserDefaults.standard.set(file, forKey: "experimentFile")
+        targets = p.defaultTargets
+        longIdle = p.hasLongIdle
         if let n = participantNumber { select(n) }
     }
 
@@ -145,6 +153,64 @@ final class AppModel: ObservableObject {
         guard let p = participant else { return }
         let done = AppModel.crossover.filter { d in plan.core.allSatisfy { p.coreBlocksDone(device: d).contains($0.id) } }
         device = Planner.suggestedDevice(number: p.number, done: done, devices: AppModel.crossover)
+        // v3.6: this person's last choice for this experiment, else the experiment's defaults
+        if let saved = p.selections[plan.name] {
+            targets = saved.filter { plan.motion($0.key) != nil }
+            longIdle = plan.hasLongIdle && (saved["long_idle"] ?? 1) > 0
+        } else {
+            targets = plan.defaultTargets
+            longIdle = plan.hasLongIdle
+        }
+        refreshDone()
+    }
+
+    // ------------------------------------------------------------------ v3.6 gesture choice
+    func refreshDone() {
+        guard let p = participant else { doneSoFar = [:]; return }
+        doneSoFar = doneCounts(p).counts
+    }
+
+    func applyPreset(_ preset: PresetDef) {
+        let d = plan.defaultTargets
+        targets = Dictionary(preset.motions.compactMap { id in d[id].map { (id, targets[id] ?? $0) } },
+                             uniquingKeysWith: { a, _ in a })
+        longIdle = plan.hasLongIdle && preset.motions.contains("long_idle")
+    }
+
+    func setAll(_ on: Bool) {
+        targets = on ? plan.defaultTargets : [:]
+        longIdle = on && plan.hasLongIdle
+    }
+
+    func toggle(_ id: String, _ on: Bool) {
+        if on { targets[id] = targets[id] ?? plan.defaultTargets[id] ?? 10 } else { targets[id] = nil }
+    }
+
+    /// Good reps per motion (rounds trials "done" minus those the experimenter marked wrong) and the last round
+    /// number per rounds block, from this person's earlier sessions of the same experiment on this AirPods model.
+    func doneCounts(_ p: Participant) -> (counts: [String: Int], lastRound: [String: Int]) {
+        var counts: [String: Int] = [:], last: [String: Int] = [:]
+        for rec in p.sessions where rec.device == device {
+            let folder = dataRoot.appendingPathComponent(rec.folder)
+            guard let ed = try? Data(contentsOf: folder.appendingPathComponent("experiment.json")),
+                  let ran = try? JSONDecoder().decode(StudyPlan.self, from: ed), ran.name == plan.name,
+                  let text = try? String(contentsOf: folder.appendingPathComponent("cues.csv"), encoding: .utf8)
+            else { continue }
+            var lines = text.split(whereSeparator: \.isNewline).map(String.init)
+            guard !lines.isEmpty else { continue }
+            let head = AppModel.csvFields(lines.removeFirst())
+            guard let iB = head.firstIndex(of: "block"), let iK = head.firstIndex(of: "kind"),
+                  let iR = head.firstIndex(of: "round"), let iM = head.firstIndex(of: "motion"),
+                  let iS = head.firstIndex(of: "status") else { continue }
+            for l in lines {
+                let f = AppModel.csvFields(l)
+                guard f.count > max(iB, iK, iR, iM, iS), f[iK] == "rounds" else { continue }
+                if f[iS] == "done" { counts[f[iM], default: 0] += 1 }
+                if f[iS] == "marked_wrong" { counts[f[iM], default: 0] -= 1 }
+                if let r = Int(f[iR]) { last[f[iB]] = max(last[f[iB]] ?? 0, r) }
+            }
+        }
+        return (counts.mapValues { max(0, $0) }, last)
     }
 
     // ------------------------------------------------------------------ which AirPods are connected
@@ -164,8 +230,13 @@ final class AppModel: ObservableObject {
     func makePreview() {
         guard let p = participant else { return }
         seed = UInt64.random(in: 1...UInt64(Int64.max))
-        preview = Planner.plan(study: plan, participant: p, device: device, budgetMin: budgetMin, seed: seed,
-                               doneRounds: doneRounds(p))
+        // v3.6: only the chosen gestures, each topped up to its target
+        let study = plan.selecting(Set(targets.keys), longIdle: longIdle)
+        let done = doneCounts(p)
+        doneSoFar = done.counts
+        sessionStudy = study
+        preview = Planner.plan(study: study, participant: p, device: device, budgetMin: budgetMin, seed: seed,
+                               targets: targets, doneCounts: done.counts, lastRound: done.lastRound)
         screen = .review
     }
 
@@ -293,8 +364,13 @@ final class AppModel: ObservableObject {
         m.experimentFile = experimentFile
         m.experimentName = plan.name
         m.platform = Platform.name
-        // exactly what was run, next to the data
-        if let d = Experiments.encode(plan) { try? d.write(to: folder.appendingPathComponent("experiment.json")) }
+        m.targets = targets
+        m.longIdle = longIdle
+        // exactly what was run (the chosen gestures only), next to the data
+        if let d = Experiments.encode(sessionStudy ?? plan) { try? d.write(to: folder.appendingPathComponent("experiment.json")) }
+        let chosen = targets.merging(["long_idle": longIdle ? 1 : 0]) { a, _ in a }
+        let name = plan.name
+        roster.update(p.number) { $0.selections[name] = chosen }
         let state = SessionState(meta: m, steps: pv.steps, index: 0, trial: 0, attempts: [:])
         roster.update(p.number) {
             $0.sessions.append(SessionRecord(code: code, folder: folderName, device: device, started: Date(),

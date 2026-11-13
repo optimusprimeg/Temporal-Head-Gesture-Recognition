@@ -191,6 +191,8 @@ struct StartView: View {
                             Picker("AirPods", selection: $model.device) {
                                 ForEach(AppModel.devices, id: \.self) { Text($0) }
                             }.frame(maxWidth: 360)
+                            .onChange(of: model.device) { _ in model.refreshDone() }
+                            GestureChoice()
                             Text("Suggested for \(p.code) by the crossover order. If you only have one model, choose the one you are wearing (it is logged).")
                                 .font(.caption).foregroundColor(.secondary)
                             AdaptiveStack {
@@ -521,5 +523,74 @@ struct DoneView: View {
             Button("Back to start") { model.backToStart() }.keyboardShortcut(.defaultAction)
         }
         }
+    }
+}
+
+
+// ---------------------------------------------------------------------------------------------------- v3.6 gesture choice
+/// Which gestures this person does and how many good reps each needs (target). Presets from the experiment file,
+/// then tick / untick and change targets. "done" = good reps this person already has (same experiment and AirPods);
+/// the plan tops each chosen gesture up to its target. The choice is remembered per person.
+struct GestureChoice: View {
+    @EnvironmentObject var model: AppModel
+
+    private var groups: [(String, [MotionDef])] {
+        var order: [String] = []
+        var by: [String: [MotionDef]] = [:]
+        for m in model.plan.motions {
+            let g = m.group ?? "head"
+            if by[g] == nil { order.append(g) }
+            by[g, default: []].append(m)
+        }
+        return order.map { ($0, by[$0] ?? []) }
+    }
+
+    var body: some View {
+        let on = model.targets.count
+        let left = model.targets.reduce(0) { $0 + max(0, $1.value - (model.doneSoFar[$1.key] ?? 0)) }
+        DisclosureGroup("Gestures for this session: \(on) of \(model.plan.motions.count) on, \(left) good reps still to record") {
+            VStack(alignment: .leading, spacing: 6) {
+                AdaptiveStack {
+                    ForEach(model.plan.presets ?? [], id: \.name) { pr in
+                        Button(pr.name) { model.applyPreset(pr) }.buttonStyle(.bordered)
+                    }
+                    Button("All") { model.setAll(true) }
+                    Button("None") { model.setAll(false) }
+                }
+                if model.plan.hasLongIdle {
+                    Toggle("Long idles (3 x 60 s: still, talk, chew)", isOn: $model.longIdle)
+                }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(groups, id: \.0) { g in
+                            Text(g.0.capitalized).font(.caption.bold()).padding(.top, 4)
+                            ForEach(g.1, id: \.id) { m in row(m) }
+                        }
+                    }
+                }.frame(maxHeight: 300)
+                Text("Target = good reps this person should have in total (default from the experiment file). Done = good reps already recorded in earlier sessions. The plan only records what is missing, spread evenly over the rounds.")
+                    .font(.caption).foregroundColor(.secondary)
+            }.padding(.leading, 4)
+        }
+    }
+
+    private func row(_ m: MotionDef) -> some View {
+        let isOn = model.targets[m.id] != nil
+        let done = model.doneSoFar[m.id] ?? 0
+        let target = model.targets[m.id] ?? (model.plan.defaultTargets[m.id] ?? 10)
+        return HStack(spacing: 8) {
+            Toggle(m.id.replacingOccurrences(of: "_", with: " "),
+                   isOn: Binding(get: { isOn }, set: { model.toggle(m.id, $0) }))
+                .frame(width: 260, alignment: .leading)
+            if isOn {
+                Stepper("target \(target)", value: Binding(get: { target }, set: { model.targets[m.id] = max(1, $0) }),
+                        in: 1...100)
+                    .frame(width: 150)
+                Text(done >= target ? "done \(done) ✓" : "done \(done)")
+                    .foregroundColor(done >= target ? .green : .secondary)
+            } else if done > 0 {
+                Text("done \(done)").foregroundColor(.secondary)
+            }
+        }.font(.caption)
     }
 }

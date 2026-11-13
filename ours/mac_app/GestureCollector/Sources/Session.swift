@@ -11,7 +11,7 @@
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "3.5.0"
+let APP_VERSION = "3.6.0"
 let PROTOCOL_VERSION = "v3.2-2026-11"   // v3: experiment files; v3.1: trial checks + retake; v3.2: the name is the go
 // v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
 // labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
@@ -52,6 +52,9 @@ struct SessionMeta: Codable {
     var experimentFile: String? = nil
     var experimentName: String? = nil
     var platform: String? = nil                    // "macOS" or "iOS"
+    // v3.6: the chosen gestures and their target good reps for this person (nil = whole experiment, rounds as planned)
+    var targets: [String: Int]? = nil
+    var longIdle: Bool? = nil
 }
 
 struct SessionState: Codable {

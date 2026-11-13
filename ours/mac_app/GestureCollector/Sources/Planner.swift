@@ -160,7 +160,17 @@ enum Planner {
             for k in 1...max(1, b.rounds) {
                 let r = r0 + k      // v3.4: continues the numbering of earlier sessions of this person
                 // v3.3: a motion with "every": n is in rounds 1, 1+n, 1+2n ... only (e.g. 1x versions at half the reps)
-                let inRound = motionIDs.filter { id in (r - 1) % max(1, plan.motion(id)?.every ?? 1) == 0 }
+                let inRound: [String]
+                if let need = b.need, let full = b.needRounds, full > 0 {
+                    // v3.6 targets: motion with n reps still needed is in round k when floor(k*n/full) steps up,
+                    // so its reps are spread evenly; a session cut short keeps every motion's share
+                    inRound = motionIDs.filter { id in
+                        let n = need[id] ?? 0
+                        return n > 0 && (k * n) / full > ((k - 1) * n) / full
+                    }
+                } else {
+                    inRound = motionIDs.filter { id in (r - 1) % max(1, plan.motion(id)?.every ?? 1) == 0 }
+                }
                 var seq = inRound + Array(repeating: "idle", count: t.idlePerRound)
                 seq.shuffle(using: &rng)
                 for m in seq {
@@ -256,7 +266,9 @@ enum Planner {
 
     // ------------------------------------------------------------------ the session
     static func plan(study: StudyPlan, participant: Participant, device: String, budgetMin: Double,
-                     seed: UInt64, fillWithExtraRounds: Bool = true, doneRounds: [String: Int] = [:]) -> SessionPlan {
+                     seed: UInt64, fillWithExtraRounds: Bool = true, doneRounds: [String: Int] = [:],
+                     targets: [String: Int]? = nil, doneCounts: [String: Int] = [:],
+                     lastRound: [String: Int] = [:]) -> SessionPlan {
         var rng = SeededRNG(seed: seed)
         let t = study.timing
         var warnings: [String] = []
@@ -268,7 +280,30 @@ enum Planner {
 
         let doneCore = participant.coreBlocksDone(device: device)
         var coreTodo = coreOrder(study.core, groups: study.counterbalance, number: participant.number)
-            .filter { !doneCore.contains($0.id) }
+            .filter { !doneCore.contains($0.id) || (targets != nil && $0.kind == .rounds) }
+        // v3.6 targets: plan per motion only the good reps still missing (target - done in earlier sessions)
+        if let targets = targets {
+            for i in coreTodo.indices where coreTodo[i].kind == .rounds {
+                let ids = coreTodo[i].motions ?? study.motions.map(\.id)
+                var need: [String: Int] = [:]
+                for id in ids {
+                    let n = (targets[id] ?? 0) - (doneCounts[id] ?? 0)
+                    if n > 0 { need[id] = n }
+                }
+                let full = need.values.max() ?? 0
+                let doneAny = ids.contains { (doneCounts[$0] ?? 0) > 0 }
+                if doneAny {
+                    let complete = ids.filter { (targets[$0] ?? 0) > 0 && need[$0] == nil }.count
+                    warnings.append("Continuing: \(complete) of \(ids.count) gestures already at their target; " +
+                                    "the rest need up to \(full) more good reps (\(full) rounds).")
+                }
+                coreTodo[i].need = need
+                coreTodo[i].needRounds = full
+                coreTodo[i].rounds = full
+                coreTodo[i].roundStart = lastRound[coreTodo[i].id] ?? 0
+                if let m = coreTodo[i].minRounds { coreTodo[i].minRounds = min(m, full) }
+            }
+        } else {
         // v3.4 continue a person: rounds already recorded in earlier (ended or incomplete) sessions of this experiment
         // on this device are not planned again; only the missing ones are, numbered on from there.
         for i in coreTodo.indices where coreTodo[i].kind == .rounds {
@@ -279,6 +314,7 @@ enum Planner {
             coreTodo[i].roundStart = d
             coreTodo[i].rounds = left
             if let m = coreTodo[i].minRounds { coreTodo[i].minRounds = min(m, left) }
+        }
         }
         coreTodo.removeAll { $0.kind == .rounds && $0.rounds <= 0 }
         // v3.1: short on time -> cut rounds blocks that allow it (minRounds), the longest first, one round at a time.
