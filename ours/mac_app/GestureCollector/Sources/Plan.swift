@@ -29,6 +29,7 @@ struct MotionDef: Codable, Hashable {
     var avoid: String? = nil  // one line: what not to do
     var every: Int? = nil     // rounds: in every n-th round only (2 = half the reps); nil = every round
     var check: String? = nil  // the single head motion our rules/model call it (tilt_1x_left -> "tilt_left")
+    var ref: String? = nil    // v3.4: web link to real examples ("Confused?" button); a link only, nothing is stored
 
     init(id: String, instruction: String, spoken: String, expect: Int? = nil, group: String? = nil, demo: String? = nil) {
         self.id = id; self.instruction = instruction; self.spoken = spoken
@@ -46,6 +47,7 @@ struct MotionDef: Codable, Hashable {
         avoid = try c.decodeIfPresent(String.self, forKey: .avoid)
         every = try c.decodeIfPresent(Int.self, forKey: .every)
         check = try c.decodeIfPresent(String.self, forKey: .check)
+        ref = try c.decodeIfPresent(String.self, forKey: .ref)
     }
     /// how + avoid as one line for the screen ("" if neither is set)
     var card: String {

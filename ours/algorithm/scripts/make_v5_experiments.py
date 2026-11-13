@@ -134,7 +134,36 @@ TIMING = {"readyS": 0.8, "windowS": 3.0, "commandWindowS": 6.0, "gapMinS": 2.0, 
           "breakEveryRounds": 4, "speechS": 1.3, "retakeOnce": True, "smallPeakRot": 0.15, "postureJumpDeg": 25}
 
 
+# "Confused?" button in the app: opens a web search of real people doing it (GIPHY for common expressions and head
+# moves, YouTube for jaw/teeth/tongue). Links only: nothing is downloaded or stored, so no licence issue.
+from urllib.parse import quote_plus  # noqa: E402
+
+GIPHY = {"tilt": "head tilt", "nod": "nodding", "circle": "head roll", "rotate": "look away down",
+         "mouth_open": "open mouth wide", "puff_cheeks": "puff cheeks", "smile": "closed mouth smile",
+         "eyebrow": "raise eyebrows", "smirk": "smirk", "sniff": "sniff", "yawn": "yawn", "scratch": "scratch head",
+         "peek": "side eye look", "idle_still": "sitting still", "idle_talk": "talking", "idle_chew": "chewing gum",
+         "idle_swallow": "gulp swallow", "earlobe": "pull earlobe", "tap": "tap cheek", "breath": "deep breath"}
+YOUTUBE = {"jaw_shift": "jaw lateral movement exercise side to side", "jaw_left": "jaw lateral movement exercise",
+           "jaw_right": "jaw lateral movement exercise", "jaw_forward": "jaw protrusion exercise push jaw forward",
+           "molar_tap": "tap back teeth together", "clench": "clench jaw teeth exercise",
+           "tongue": "tongue in cheek push exercise", "rotate": "turn head and tuck chin stretch"}
+
+
+def ref_for(mid):
+    for k, q in YOUTUBE.items():           # face-muscle moves first: GIPHY has no real demos of these
+        if k in mid:
+            return "https://www.youtube.com/results?search_query=" + quote_plus(q)
+    for k, q in GIPHY.items():
+        if k in mid:
+            return "https://giphy.com/search/" + quote_plus(q).replace("+", "-")
+    return None
+
+
 def write(name, plan):
+    for m in plan["motions"]:
+        r = ref_for(m["id"])
+        if r and "ref" not in m:
+            m["ref"] = r
     ids = [m["id"] for m in plan["motions"]]
     assert len(ids) == len(set(ids)), "duplicate motion id"
     (OUT / name).write_text(json.dumps(plan, indent=2, ensure_ascii=False), encoding="utf-8")

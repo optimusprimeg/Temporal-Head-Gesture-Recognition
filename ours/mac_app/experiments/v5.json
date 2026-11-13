@@ -11,7 +11,8 @@
       "how": "left ear toward left shoulder and back, twice, quickly",
       "avoid": "shoulders stay down; don't hold",
       "expect": 2,
-      "demo": "tilt_left,tilt_left"
+      "demo": "tilt_left,tilt_left",
+      "ref": "https://giphy.com/search/head-tilt"
     },
     {
       "id": "tilt_2x_right",
@@ -21,7 +22,8 @@
       "how": "right ear toward right shoulder and back, twice, quickly",
       "avoid": "shoulders stay down; don't hold",
       "expect": 2,
-      "demo": "tilt_right,tilt_right"
+      "demo": "tilt_right,tilt_right",
+      "ref": "https://giphy.com/search/head-tilt"
     },
     {
       "id": "nod_2x_front",
@@ -31,7 +33,8 @@
       "how": "chin down and back up, twice, quickly",
       "avoid": "don't hold the chin down",
       "expect": 2,
-      "demo": "nod_down,nod_down"
+      "demo": "nod_down,nod_down",
+      "ref": "https://giphy.com/search/nodding"
     },
     {
       "id": "circle_cw",
@@ -41,7 +44,8 @@
       "how": "nose draws one clock on the wall: 12, 3, 6, 9, 12",
       "avoid": "only one circle",
       "expect": 1,
-      "demo": "circle_cw"
+      "demo": "circle_cw",
+      "ref": "https://giphy.com/search/head-roll"
     },
     {
       "id": "circle_ccw",
@@ -51,7 +55,8 @@
       "how": "nose draws one clock backwards: 12, 9, 6, 3, 12",
       "avoid": "only one circle",
       "expect": 1,
-      "demo": "circle_ccw"
+      "demo": "circle_ccw",
+      "ref": "https://giphy.com/search/head-roll"
     },
     {
       "id": "rotate_left_chin_down",
@@ -61,7 +66,8 @@
       "how": "ONE merged motion: turn left and, while still turned, dip the chin; then back to the front",
       "avoid": "not two separate moves; don't turn your body",
       "expect": 2,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=turn+head+and+tuck+chin+stretch"
     },
     {
       "id": "rotate_right_chin_down",
@@ -71,7 +77,8 @@
       "how": "ONE merged motion: turn right and, while still turned, dip the chin; then back to the front",
       "avoid": "not two separate moves; don't turn your body",
       "expect": 2,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=turn+head+and+tuck+chin+stretch"
     },
     {
       "id": "mouth_open_2x",
@@ -81,7 +88,8 @@
       "how": "open wide and close, twice",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/open-mouth-wide"
     },
     {
       "id": "puff_cheeks_2x",
@@ -91,7 +99,8 @@
       "how": "fill both cheeks with air and release, twice",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/puff-cheeks"
     },
     {
       "id": "jaw_shift_left_right",
@@ -101,7 +110,8 @@
       "how": "lower jaw slides left, then right, then centre",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=jaw+lateral+movement+exercise+side+to+side"
     },
     {
       "id": "smile_2x",
@@ -111,7 +121,8 @@
       "how": "lips closed, both corners up, twice",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/closed-mouth-smile"
     },
     {
       "id": "molar_tap_2x",
@@ -121,7 +132,8 @@
       "how": "back teeth click together twice",
       "avoid": "don't move your head",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=tap+back+teeth+together"
     },
     {
       "id": "jaw_forward_2x",
@@ -131,7 +143,8 @@
       "how": "push the lower jaw out and back, twice",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=jaw+protrusion+exercise+push+jaw+forward"
     },
     {
       "id": "jaw_clench_double",
@@ -141,7 +154,8 @@
       "how": "bite down hard for a moment, twice",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=clench+jaw+teeth+exercise"
     },
     {
       "id": "eyebrow_up_down_2x",
@@ -151,7 +165,8 @@
       "how": "eyebrows up and down, twice",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/raise-eyebrows"
     },
     {
       "id": "eyebrow_then_mouth_open",
@@ -161,7 +176,8 @@
       "how": "eyebrows once, wait one second, mouth once",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/open-mouth-wide"
     },
     {
       "id": "mouth_open_then_eyebrow",
@@ -171,7 +187,8 @@
       "how": "mouth once, wait one second, eyebrows once",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/open-mouth-wide"
     },
     {
       "id": "eyebrow_then_puff_cheeks",
@@ -181,7 +198,8 @@
       "how": "eyebrows once, wait one second, puff once",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/puff-cheeks"
     },
     {
       "id": "mouth_open_then_puff_cheeks",
@@ -191,7 +209,8 @@
       "how": "mouth once, wait one second, puff once",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/open-mouth-wide"
     },
     {
       "id": "puff_cheeks_then_eyebrow",
@@ -201,7 +220,8 @@
       "how": "puff once, wait one second, eyebrows once",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/puff-cheeks"
     },
     {
       "id": "jaw_left_then_eyebrow",
@@ -211,7 +231,8 @@
       "how": "jaw left and back, wait one second, eyebrows once",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=jaw+lateral+movement+exercise"
     },
     {
       "id": "eyebrow_then_jaw_left",
@@ -221,7 +242,8 @@
       "how": "eyebrows once, wait one second, jaw left and back",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=jaw+lateral+movement+exercise"
     },
     {
       "id": "jaw_right_then_eyebrow",
@@ -231,7 +253,8 @@
       "how": "jaw right, hold, back; wait one second; eyebrows once",
       "avoid": "keep your head still",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://www.youtube.com/results?search_query=jaw+lateral+movement+exercise"
     },
     {
       "id": "idle_still",
@@ -241,7 +264,8 @@
       "how": "relax, look ahead",
       "avoid": "no gesture",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/sitting-still"
     },
     {
       "id": "idle_talk",
@@ -251,7 +275,8 @@
       "how": "count aloud until the beep",
       "avoid": "no gesture",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/talking"
     },
     {
       "id": "idle_chew",
@@ -261,7 +286,8 @@
       "how": "chew normally until the beep",
       "avoid": "no gesture",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/chewing-gum"
     },
     {
       "id": "idle_swallow",
@@ -271,7 +297,8 @@
       "how": "one normal swallow",
       "avoid": "no gesture",
       "expect": 0,
-      "demo": "none"
+      "demo": "none",
+      "ref": "https://giphy.com/search/gulp-swallow"
     }
   ],
   "commands": [],

@@ -282,6 +282,13 @@ struct RunView: View {
     @EnvironmentObject var rec: Recorder
     @ObservedObject var runner: SessionRunner
     @State private var noteText = ""
+    @Environment(\.openURL) private var openURL
+
+    /// v3.4 "Confused?": the motion's "ref" link (real people doing it on GIPHY / YouTube), opened in the browser.
+    private var refURL: URL? {
+        guard !runner.cueID.isEmpty, let s = model.plan.motion(runner.cueID)?.ref else { return nil }
+        return URL(string: s)
+    }
 
     var body: some View {
         PhoneScroll {
@@ -312,8 +319,16 @@ struct RunView: View {
                     }
                 }
                 Spacer()
-                TwoHeads(motion: runner.motion, recorder: rec, reference: model.reference,
-                         clip: Experiments.clip(runner.cueID, dataRoot: model.dataRoot))
+                VStack(spacing: 6) {
+                    TwoHeads(motion: runner.motion, recorder: rec, reference: model.reference,
+                             clip: Experiments.clip(runner.cueID, dataRoot: model.dataRoot))
+                    if let u = refURL, !runner.nowActive {   // not during the motion window itself
+                        Button("Confused? See real people do it") {
+                            runner.note("confused: opened examples for \(runner.cueID)")
+                            openURL(u)
+                        }.font(.caption)
+                    }
+                }
             }
             Button("Set front (look straight ahead, then click)") { model.reference = rec.angles }.font(.caption)
             Spacer()
