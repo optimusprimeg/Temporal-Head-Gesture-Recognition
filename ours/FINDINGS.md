@@ -103,9 +103,16 @@ Status labels: **SOLID** (several people/datasets, repeatable), **LIKELY** (cons
   new v5 collector files (S03/S8/S9) all store it DOWN in m/s² (checked 2026-11-13: app P01 gravZ -9.4, S03 -9.1,
   S8 -9.5, S9 -8.6). So app sessions and v5 files merge as they are; only the old collector files need the flip.
   Wrong sign flips left/right (rotate-left read 0/30 before the fix, 15/15 after).
-- Earbud side: teammates record with the RIGHT AirPod only; left vs right flips tilt/turn signs. App v3.5 now
-  asks for the right one in v5 experiments; check `sensor_location` before merging any older app session.
+- Earbud side: teammates record with the RIGHT AirPod only; left vs right flips tilt/turn signs. App v3.7 records
+  either side (one AirPod) and logs it (`earbudSide`, `sensor_location`); check it before merging any session.
+- **Retakes in app data (v3.1+):** when the app's check fails it asks for the trial again, and BOTH tries are
+  "done" rows with the same block/round/motion (P01 pilot session: 11 of 91 gestures). `app_to_v5_csv.py` already
+  marks the failed try `bad:` (its mismatch / count flag), so converted training data is fine; anything reading
+  cues.csv directly must keep only the last try per trial. App v3.6 counted both toward targets (fixed in v3.7).
 - Never open data CSVs in Excel and save (timestamps break).
+- `app_to_v5_csv.py` before 2026-11-14 wrote an EMPTY `sensor_location` column (off-by-one in the copied
+  columns). Re-convert any app session converted before that date. P06 (Yash, app v3.6) re-converted: LEFT bud,
+  so its tilt/turn signs are mirrored vs the teammates' right-bud files.
 - Some v5 gestures are ONE merged motion (rotate_*_chin_down, circles, jaw_shift_left_right, tilt_hold): never
   split or map them to single motions. Combos (X_then_Y) are two parts by design.
 
@@ -188,6 +195,10 @@ Status labels: **SOLID** (several people/datasets, repeatable), **LIKELY** (cons
 - Double-pattern rule (two same singles within gap X) vs a window model for 2x gestures.
 - Idle talk/chew false triggers for face commands, measured per hour on long idles.
 - Head turn vs whole-body turn (gravity/heading) as a confound.
+- **Left vs right earbud (2026-11-13):** teammates recorded RIGHT only; P01's right AirPod died, so P01's new app
+  sessions are LEFT. Test: train on right-ear people, test on left (and back), raw vs head-frame features vs
+  mirrored signs. Never merge sides blindly; keep `sensor_location` as a variable. Outcome = "works with either
+  ear" or "needs a per-side model".
 - Our extra gestures (smirk, tongue, earlobe, sniff, cheek/chin tap): keep only if a small pilot shows them
   clearly separable (few trials, every 3rd round in `v5_plus.json`).
 
@@ -196,9 +207,16 @@ Status labels: **SOLID** (several people/datasets, repeatable), **LIKELY** (cons
 ## Change log
 - 2026-11-13: file created from all work so far (F1-F17).
 - 2026-11-13: F10 updated (gravity convention checked across app and v5 files; earbud side rule).
+- 2026-11-14: F10: retakes in app data; earbud side now logged, not required (app v3.7).
+- 2026-11-14: F10: converter sensor_location bug fixed; P06 converted to v5 format (dataset_P06.csv).
 
-## Experiment-side notes (what the app records for the paper, v3.5)
+## Experiment-side notes (what the app records for the paper, v3.5-3.7)
 - `feedback.json` per session: easy-to-do and OK-in-public (1-5) per gesture group + the hardest gesture in the
   participant's words -> a usability column next to accuracy.
 - "Confused?" clicks (notes.csv) and experimenter "marked_wrong" rows (cues.csv) -> which gestures are hard to
   understand vs hard to perform.
+- v3.7 optional scene video (consented people only): `scene_NNN_frames.csv` puts every video frame on the cues.csv
+  clock, so `scripts/cut_scene_clips.py` cuts one clip per trial -> label checks by eye ("did they really do X?"),
+  real demo clips for later pilots instead of online GIFs, and a figure of how each micro-gesture looks.
+- Good reps per person are counted per planned trial (last try counts), per AirPods model, per experiment family
+  (v5 + v5_plus); "can't do" is remembered per person -> report it as a per-gesture "could not perform" rate.

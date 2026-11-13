@@ -266,7 +266,7 @@ enum Planner {
 
     // ------------------------------------------------------------------ the session
     static func plan(study: StudyPlan, participant: Participant, device: String, budgetMin: Double,
-                     seed: UInt64, fillWithExtraRounds: Bool = true, doneRounds: [String: Int] = [:],
+                     seed: UInt64, fillWithExtraRounds: Bool = true,
                      targets: [String: Int]? = nil, doneCounts: [String: Int] = [:],
                      lastRound: [String: Int] = [:]) -> SessionPlan {
         var rng = SeededRNG(seed: seed)
@@ -303,18 +303,6 @@ enum Planner {
                 coreTodo[i].roundStart = lastRound[coreTodo[i].id] ?? 0
                 if let m = coreTodo[i].minRounds { coreTodo[i].minRounds = min(m, full) }
             }
-        } else {
-        // v3.4 continue a person: rounds already recorded in earlier (ended or incomplete) sessions of this experiment
-        // on this device are not planned again; only the missing ones are, numbered on from there.
-        for i in coreTodo.indices where coreTodo[i].kind == .rounds {
-            let d = min(doneRounds[coreTodo[i].id] ?? 0, coreTodo[i].rounds)
-            guard d > 0 else { continue }
-            let left = coreTodo[i].rounds - d
-            warnings.append("Continuing: \(d) of \(coreTodo[i].rounds) rounds of \"\(coreTodo[i].title)\" already recorded in earlier sessions, \(left) left.")
-            coreTodo[i].roundStart = d
-            coreTodo[i].rounds = left
-            if let m = coreTodo[i].minRounds { coreTodo[i].minRounds = min(m, left) }
-        }
         }
         coreTodo.removeAll { $0.kind == .rounds && $0.rounds <= 0 }
         // v3.1: short on time -> cut rounds blocks that allow it (minRounds), the longest first, one round at a time.

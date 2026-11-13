@@ -13,7 +13,7 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.0.0</string>
+    <string>3.7.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
@@ -24,5 +24,7 @@
     <true/>
     <key>NSMotionUsageDescription</key>
     <string>Records AirPods head motion for the CS724 gesture study.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Optional scene video of the participant during a session (only with their consent), for the CS724 gesture study.</string>
 </dict>
 </plist>

@@ -181,22 +181,26 @@ PRESETS_V5 = [
     {"name": "All v5", "motions": ids(V5) + ["long_idle"]},
     {"name": "Micro only", "motions": ids(V5, "face", "combo") + IDLES + ["long_idle"]},
     {"name": "Head only", "motions": ids(V5, "head") + IDLES},
+    {"name": "Face only", "motions": ids(V5, "face") + IDLES},
+    {"name": "Combos only", "motions": ids(V5, "combo") + IDLES},
     {"name": "Weak ones", "motions": WEAK + IDLES},
 ]
 PRESETS_PLUS = PRESETS_V5 + [
     {"name": "1x + 2x", "motions": ids(ONE_X) + [m for m in ids(V5) if any(m.startswith(k) for k in
                                                 ("tilt_2x", "nod_2x", "mouth_open_2x", "puff_cheeks_2x"))] + IDLES},
     {"name": "Extras pilot", "motions": ids(EXTRA) + IDLES},
+    {"name": "Face + face extras", "motions": ids(V5, "face") + ids(EXTRA, "face") + IDLES},
+    {"name": "Touch only", "motions": ids(EXTRA, "touch") + IDLES},
     {"name": "Near-miss", "motions": ids(NEAR_MISS) + IDLES},
 ]
 
 OUT.mkdir(parents=True, exist_ok=True)
 write("v5.json", {
-    "name": "Teammates v5 (rounds)", "version": "v5-rounds-1",
+    "name": "Teammates v5 (rounds)", "version": "v5-rounds-2",
     "about": "collector_v5's 30 items with the same labels: 23 gestures + 4 short idles in random rounds (each once per "
              "round, 3 s window), then 3 x 60 s idle. Converts to the v5 CSV with app_to_v5_csv.py. About 3.5 min per round.",
     "motions": V5, "commands": [], "timing": TIMING, "practicePerMotionFirst": 1, "practicePerMotionLater": 0,
-    "earbud": "right", "feedbackGroups": ["head", "face", "combo"], "presets": PRESETS_V5,
+    "earbud": "one", "family": "v5", "feedbackGroups": ["head", "face", "combo"], "presets": PRESETS_V5,
     "core": [{"id": "core.rounds", "kind": "rounds", "title": "Rounds", "condition": "sitting", "rounds": 20, "minRounds": 2},
              LONG_IDLE],
     "modules": [], "fillModule": None})
@@ -223,12 +227,12 @@ plus_mod = [
         {"id": "G.rounds", "kind": "rounds", "title": "Extra rounds", "condition": "sitting", "rounds": 1}]},
 ]
 write("v5_plus.json", {
-    "name": "v5 plus (1x, extras, near-miss)", "version": "v5-plus-1",
+    "name": "v5 plus (1x, extras, near-miss)", "version": "v5-plus-2",
     "about": "The 30 v5 items + single (1x) versions at half the reps + our extra (candidate) gestures every 3rd round + near-miss cues (NOT "
              "commands) in random rounds, then 3 x 60 s idle; extra modules fill the time (near-miss block first). "
              "About 6 min per round. Converts to the v5 CSV with app_to_v5_csv.py (extra labels kept as they are).",
     "motions": V5 + ONE_X + EXTRA + NEAR_MISS, "commands": [], "timing": TIMING,
-    "earbud": "right", "feedbackGroups": ["head", "face", "combo", "touch"], "presets": PRESETS_PLUS,
+    "earbud": "one", "family": "v5", "feedbackGroups": ["head", "face", "combo", "touch"], "presets": PRESETS_PLUS,
     "practicePerMotionFirst": 1, "practicePerMotionLater": 0,
     "core": [{"id": "core.rounds", "kind": "rounds", "title": "Rounds", "condition": "sitting", "rounds": 12, "minRounds": 2},
              LONG_IDLE],

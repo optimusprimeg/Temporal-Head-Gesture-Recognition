@@ -27,9 +27,19 @@ final class AppModel: ObservableObject {
     @Published var live: LiveSession?
     // v3.6 gestures for this session: chosen motion -> target good reps (absent = off), the long idles, and how many
     // good reps this person already has per motion (this experiment, this AirPods model)
-    @Published var targets: [String: Int] = [:]
-    @Published var longIdle = true
+    @Published var targets: [String: Int] = [:] { didSet { recomputeLeft() } }
+    @Published var longIdle = true { didSet { recomputeLeft() } }
     @Published var doneSoFar: [String: Int] = [:]
+    // v3.7: good reps this person has on OTHER AirPods models (shown when the chosen model has fewer), the motions
+    // they cannot do (remembered per experiment family), and the time all their missing reps would take
+    @Published var doneOtherDevices: [String: Int] = [:]
+    @Published var cantDo: Set<String> = []
+    @Published var totalLeftS: Double = 0
+    // v3.7 optional scene video (webcam) for this session
+    @Published var sceneVideo = false
+    @Published var videoQuality = UserDefaults.standard.string(forKey: "videoQuality") ?? "small" {
+        didSet { UserDefaults.standard.set(videoQuality, forKey: "videoQuality") }
+    }
     private var sessionStudy: StudyPlan?
 
     let recorder = Recorder()
@@ -129,6 +139,25 @@ final class AppModel: ObservableObject {
         panel.canCreateDirectories = true
         panel.prompt = "Use this folder"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        // v3.7: never a folder INSIDE a data folder (the experiments folder, a session folder, removed/, video/):
+        // that made a second roster.json and hid sessions (the P02/P03 mix-up)
+        let fm = FileManager.default
+        let name = url.lastPathComponent.lowercased()
+        let parent = url.deletingLastPathComponent()
+        // any ancestor with a roster.json = this folder is inside an existing data folder
+        var insideData = false
+        var up = parent
+        while up.path.count > 1 && !fm.fileExists(atPath: url.appendingPathComponent("roster.json").path) {
+            if fm.fileExists(atPath: up.appendingPathComponent("roster.json").path) { insideData = true; break }
+            let next = up.deletingLastPathComponent()
+            if next.path == up.path { break }
+            up = next
+        }
+        if ["experiments", "media", "removed", "video"].contains(name) || url.path.contains("/experiments/")
+            || fm.fileExists(atPath: url.appendingPathComponent("state.json").path) || insideData {
+            message = "Not used: \(url.path) is inside a data folder (experiments, a session or removed). Choose the data folder itself, e.g. Documents/GestureCollector."
+            return
+        }
         dataRoot = url
         UserDefaults.standard.set(url.path, forKey: "dataRoot")
         roster.moveTo(dataRoot: url)
@@ -137,22 +166,29 @@ final class AppModel: ObservableObject {
     }
     #endif
 
-    func addParticipant(firstName: String, profile: [String: String], number: Int?) {
+    func addParticipant(firstName: String, profile: [String: String], number: Int?, videoConsent: Bool = false) {
         let name = firstName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { message = "Type a first name."; return }
         guard let p = roster.add(firstName: name, profile: profile, number: number) else {
             message = "Participant number \(number ?? 0) is already used on this device."
             return
         }
+        roster.update(p.number) { $0.videoConsent = videoConsent }
         message = ""
         select(p.number)
     }
 
     func select(_ number: Int?) {
         participantNumber = number
-        guard let p = participant else { return }
-        let done = AppModel.crossover.filter { d in plan.core.allSatisfy { p.coreBlocksDone(device: d).contains($0.id) } }
-        device = Planner.suggestedDevice(number: p.number, done: done, devices: AppModel.crossover)
+        sceneVideo = false        // v3.7: video is switched on per person and session, never carried over
+        guard let p = participant else { refreshDone(); return }
+        // v3.7: the AirPods this person used last time (counts are per model, so a silent switch showed "done 0");
+        // a new person gets the first model of the crossover order
+        if let last = p.lastDevice, AppModel.devices.contains(last) {
+            device = last
+        } else {
+            device = Planner.suggestedDevice(number: p.number, done: [], devices: AppModel.crossover)
+        }
         // v3.6: this person's last choice for this experiment, else the experiment's defaults
         if let saved = p.selections[plan.name] {
             targets = saved.filter { plan.motion($0.key) != nil }
@@ -166,8 +202,48 @@ final class AppModel: ObservableObject {
 
     // ------------------------------------------------------------------ v3.6 gesture choice
     func refreshDone() {
-        guard let p = participant else { doneSoFar = [:]; return }
+        guard let p = participant else {
+            doneSoFar = [:]; doneOtherDevices = [:]; cantDo = []; totalLeftS = 0
+            return
+        }
         doneSoFar = doneCounts(p).counts
+        var other: [String: Int] = [:]
+        for d in Set(p.sessions.map(\.device)) where d != device {
+            for (k, v) in doneCounts(p, device: d).counts { other[k, default: 0] += v }
+        }
+        doneOtherDevices = other
+        cantDo = Set(p.cantDo[plan.familyKey] ?? [])
+        recomputeLeft()
+    }
+
+    /// v3.7: the chosen gestures minus those this person cannot do, each with its target.
+    var effectiveTargets: [String: Int] { targets.filter { !cantDo.contains($0.key) } }
+
+    /// v3.7: how long ALL of this person's missing reps would take in one go (not just this sitting's budget).
+    func recomputeLeft() {
+        guard let p = participant else { totalLeftS = 0; return }
+        let t = effectiveTargets
+        let study = plan.selecting(Set(t.keys), longIdle: longIdle)
+        let pv = Planner.plan(study: study, participant: p, device: device, budgetMin: 100_000, seed: 1,
+                              fillWithExtraRounds: false, targets: t, doneCounts: doneSoFar)
+        totalLeftS = Planner.estimate(pv.steps.filter { $0.module == "core" }, study.timing)
+    }
+
+    func setAllTargets(_ n: Int) {
+        let v = min(500, max(1, n))
+        targets = targets.mapValues { _ in v }
+    }
+
+    func resetTargets() {
+        targets = Dictionary(uniqueKeysWithValues: targets.keys.map { ($0, plan.defaultTargets[$0] ?? 10) })
+    }
+
+    /// v3.7: "can't do" is remembered for the person (per experiment family); this lets them try it again.
+    func allowAgain(_ id: String) {
+        guard let p = participant else { return }
+        let fam = plan.familyKey
+        roster.update(p.number) { $0.cantDo[fam] = ($0.cantDo[fam] ?? []).filter { $0 != id } }
+        refreshDone()
     }
 
     func applyPreset(_ preset: PresetDef) {
@@ -186,31 +262,42 @@ final class AppModel: ObservableObject {
         if on { targets[id] = targets[id] ?? plan.defaultTargets[id] ?? 10 } else { targets[id] = nil }
     }
 
-    /// Good reps per motion (rounds trials "done" minus those the experimenter marked wrong) and the last round
-    /// number per rounds block, from this person's earlier sessions of the same experiment on this AirPods model.
-    func doneCounts(_ p: Participant) -> (counts: [String: Int], lastRound: [String: Int]) {
+    /// Good reps per motion and the last round number per rounds block, from this person's earlier sessions of the
+    /// same experiment FAMILY (v5 + v5_plus) on one AirPods model (default: the chosen one).
+    /// v3.7: one planned trial = at most one good rep. A trial is (rounds block, round, motion) in one session file:
+    /// its first try, a retake after a failed check, a repeat after an earbud switch / gap, a "marked wrong" row and
+    /// its redo all share it. It is good when its LAST done / marked_wrong row is "done". (v3.6 counted every "done"
+    /// row, so a failed try + its retake counted 2.)
+    func doneCounts(_ p: Participant, device dev: String? = nil) -> (counts: [String: Int], lastRound: [String: Int]) {
+        let want = dev ?? device
         var counts: [String: Int] = [:], last: [String: Int] = [:]
-        for rec in p.sessions where rec.device == device {
+        for rec in p.sessions where rec.device == want {
             let folder = dataRoot.appendingPathComponent(rec.folder)
             guard let ed = try? Data(contentsOf: folder.appendingPathComponent("experiment.json")),
-                  let ran = try? JSONDecoder().decode(StudyPlan.self, from: ed), ran.name == plan.name,
-                  let text = try? String(contentsOf: folder.appendingPathComponent("cues.csv"), encoding: .utf8)
+                  let ran = try? JSONDecoder().decode(StudyPlan.self, from: ed), ran.familyKey == plan.familyKey
             else { continue }
-            var lines = text.split(whereSeparator: \.isNewline).map(String.init)
-            guard !lines.isEmpty else { continue }
-            let head = AppModel.csvFields(lines.removeFirst())
-            guard let iB = head.firstIndex(of: "block"), let iK = head.firstIndex(of: "kind"),
-                  let iR = head.firstIndex(of: "round"), let iM = head.firstIndex(of: "motion"),
-                  let iS = head.firstIndex(of: "status") else { continue }
-            for l in lines {
-                let f = AppModel.csvFields(l)
-                guard f.count > max(iB, iK, iR, iM, iS), f[iK] == "rounds" else { continue }
-                if f[iS] == "done" { counts[f[iM], default: 0] += 1 }
-                if f[iS] == "marked_wrong" { counts[f[iM], default: 0] -= 1 }
-                if let r = Int(f[iR]) { last[f[iB]] = max(last[f[iB]] ?? 0, r) }
+            var final: [String: (motion: String, good: Bool)] = [:]   // trial key -> its last verdict (whole session)
+            // a session started by an older app version may have continued in cues_v31.csv
+            for name in ["cues.csv", "cues_v31.csv"] {
+                guard let text = try? String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8) else { continue }
+                var lines = text.split(whereSeparator: \.isNewline).map(String.init)
+                guard !lines.isEmpty else { continue }
+                let head = AppModel.csvFields(lines.removeFirst())
+                guard let iB = head.firstIndex(of: "block"), let iK = head.firstIndex(of: "kind"),
+                      let iR = head.firstIndex(of: "round"), let iM = head.firstIndex(of: "motion"),
+                      let iS = head.firstIndex(of: "status") else { continue }
+                for l in lines {
+                    let f = AppModel.csvFields(l)
+                    guard f.count > max(iB, iK, iR, iM, iS), f[iK] == "rounds" else { continue }
+                    if let r = Int(f[iR]) { last[f[iB]] = max(last[f[iB]] ?? 0, r) }
+                    // the trial's LAST row decides: a retake that was skipped / disturbed / can't-do = not good
+                    guard ["done", "marked_wrong", "skipped", "disturbed", "cant_do"].contains(f[iS]) else { continue }
+                    final["\(f[iB])|\(f[iR])|\(f[iM])"] = (f[iM], f[iS] == "done")
+                }
             }
+            for v in final.values where v.good { counts[v.motion, default: 0] += 1 }
         }
-        return (counts.mapValues { max(0, $0) }, last)
+        return (counts, last)
     }
 
     // ------------------------------------------------------------------ which AirPods are connected
@@ -230,78 +317,49 @@ final class AppModel: ObservableObject {
     func makePreview() {
         guard let p = participant else { return }
         seed = UInt64.random(in: 1...UInt64(Int64.max))
-        // v3.6: only the chosen gestures, each topped up to its target
-        let study = plan.selecting(Set(targets.keys), longIdle: longIdle)
+        // v3.6: only the chosen gestures, each topped up to its target; v3.7: minus what this person cannot do
+        let t = effectiveTargets
+        let study = plan.selecting(Set(t.keys), longIdle: longIdle)
         let done = doneCounts(p)
         doneSoFar = done.counts
         sessionStudy = study
         preview = Planner.plan(study: study, participant: p, device: device, budgetMin: budgetMin, seed: seed,
-                               targets: targets, doneCounts: done.counts, lastRound: done.lastRound)
+                               targets: t, doneCounts: done.counts, lastRound: done.lastRound)
         screen = .review
-    }
-
-    /// v3.4 continue a person: complete rounds per core rounds block, counted from the cues.csv of this person's
-    /// earlier sessions with the same experiment (by name) on the same device. A round counts when every motion
-    /// planned in it was done (or marked can't-do); a round cut off half way does not count.
-    func doneRounds(_ p: Participant) -> [String: Int] {
-        var out: [String: Int] = [:]
-        let blocks = plan.core.filter { $0.kind == .rounds }
-        guard !blocks.isEmpty else { return out }
-        for rec in p.sessions where rec.device == device {
-            let folder = dataRoot.appendingPathComponent(rec.folder)
-            guard let ed = try? Data(contentsOf: folder.appendingPathComponent("experiment.json")),
-                  let ran = try? JSONDecoder().decode(StudyPlan.self, from: ed), ran.name == plan.name,
-                  let text = try? String(contentsOf: folder.appendingPathComponent("cues.csv"), encoding: .utf8)
-            else { continue }
-            var lines = text.split(whereSeparator: \.isNewline).map(String.init)
-            guard !lines.isEmpty else { continue }
-            let head = AppModel.csvFields(lines.removeFirst())
-            guard let iB = head.firstIndex(of: "block"), let iK = head.firstIndex(of: "kind"),
-                  let iR = head.firstIndex(of: "round"), let iM = head.firstIndex(of: "motion"),
-                  let iS = head.firstIndex(of: "status") else { continue }
-            var got: [String: [Int: Set<String>]] = [:]
-            for l in lines {
-                let f = AppModel.csvFields(l)
-                guard f.count > max(iB, iK, iR, iM, iS), f[iK] == "rounds", f[iS] == "done" || f[iS] == "cant_do",
-                      let r = Int(f[iR]) else { continue }
-                got[f[iB], default: [:]][r, default: []].insert(f[iM])
-            }
-            for b in blocks {
-                let ids = b.motions ?? plan.motions.map(\.id)
-                var n = 0
-                for (r, seen) in got[b.id] ?? [:] {
-                    let need = ids.filter { (r - 1) % max(1, plan.motion($0)?.every ?? 1) == 0 }
-                    if need.allSatisfy({ seen.contains($0) }) { n += 1 }
-                }
-                out[b.id, default: 0] += n
-            }
-        }
-        return out
     }
 
     /// v3.5 end-of-session table: per motion, gesture trials done, flagged by the checks, marked wrong by the
     /// experimenter, and "Confused?" clicks (from notes.csv). Rounds, practice and commands rows only.
-    struct SummaryRow: Identifiable { var id: String { motion }; var motion: String; var done = 0, flagged = 0, wrong = 0, confused = 0 }
+    /// v3.7: "good" = rounds trials whose last try is done (a retake or redo is one trial, as in doneCounts).
+    struct SummaryRow: Identifiable { var id: String { motion }; var motion: String; var done = 0, good = 0, flagged = 0, wrong = 0, confused = 0 }
 
     static func sessionSummary(folder: URL) -> [SummaryRow] {
         var rows: [String: SummaryRow] = [:]
-        if let text = try? String(contentsOf: folder.appendingPathComponent("cues.csv"), encoding: .utf8) {
+        var final: [String: (motion: String, good: Bool)] = [:]
+        for name in ["cues.csv", "cues_v31.csv"] {     // a resumed older session continues in cues_v31.csv
+        if let text = try? String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8) {
             var lines = text.split(whereSeparator: \.isNewline).map(String.init)
             if !lines.isEmpty {
                 let head = csvFields(lines.removeFirst())
                 if let iK = head.firstIndex(of: "kind"), let iM = head.firstIndex(of: "motion"),
-                   let iS = head.firstIndex(of: "status"), let iF = head.firstIndex(of: "flags") {
+                   let iS = head.firstIndex(of: "status"), let iF = head.firstIndex(of: "flags"),
+                   let iB = head.firstIndex(of: "block"), let iR = head.firstIndex(of: "round") {
                     for l in lines {
                         let f = csvFields(l)
-                        guard f.count > max(iK, iM, iS, iF), ["rounds", "practice", "commands"].contains(f[iK]) else { continue }
+                        guard f.count > max(iK, iM, iS, iF, iB, iR), ["rounds", "practice", "commands"].contains(f[iK]) else { continue }
                         var r = rows[f[iM]] ?? SummaryRow(motion: f[iM])
                         if f[iS] == "done" { r.done += 1; if !f[iF].isEmpty { r.flagged += 1 } }
                         if f[iS] == "marked_wrong" { r.wrong += 1 }
                         rows[f[iM]] = r
+                        if f[iK] == "rounds", ["done", "marked_wrong", "skipped", "disturbed", "cant_do"].contains(f[iS]) {
+                            final["\(f[iB])|\(f[iR])|\(f[iM])"] = (f[iM], f[iS] == "done")
+                        }
                     }
                 }
             }
         }
+        }
+        for v in final.values where v.good { rows[v.motion]?.good += 1 }
         if let notes = try? String(contentsOf: folder.appendingPathComponent("notes.csv"), encoding: .utf8) {
             for l in notes.split(whereSeparator: \.isNewline) {
                 guard let r = l.range(of: "confused: opened examples for ") else { continue }
@@ -364,8 +422,11 @@ final class AppModel: ObservableObject {
         m.experimentFile = experimentFile
         m.experimentName = plan.name
         m.platform = Platform.name
-        m.targets = targets
+        m.targets = effectiveTargets
         m.longIdle = longIdle
+        m.earbudSide = recorder.location
+        m.sceneVideo = sceneVideo && p.videoConsent == true
+        if m.sceneVideo == true { m.videoQuality = videoQuality }
         // exactly what was run (the chosen gestures only), next to the data
         if let d = Experiments.encode(sessionStudy ?? plan) { try? d.write(to: folder.appendingPathComponent("experiment.json")) }
         let chosen = targets.merging(["long_idle": longIdle ? 1 : 0]) { a, _ in a }
@@ -376,15 +437,19 @@ final class AppModel: ObservableObject {
             $0.sessions.append(SessionRecord(code: code, folder: folderName, device: device, started: Date(),
                                              status: "running", modulesDone: [], coreBlocksDone: []))
         }
-        launch(folder: folder, state: state, resuming: false)
+        launch(folder: folder, state: state, resuming: false, video: m.sceneVideo == true)
     }
 
-    private func launch(folder: URL, state: SessionState, resuming: Bool) {
+    private func launch(folder: URL, state: SessionState, resuming: Bool, video: Bool) {
         // the experiment that was actually run (saved next to the data) wins over the one chosen now (resume)
         var study = plan
         if let d = try? Data(contentsOf: folder.appendingPathComponent("experiment.json")),
            let p = try? JSONDecoder().decode(StudyPlan.self, from: d) { study = p }
         let r = SessionRunner(folder: folder, state: state, recorder: recorder, timing: study.timing, motions: study.motions)
+        // v3.7: scene video goes to <data folder>/video/<session folder>/ (outside the session folder, so the
+        // session zip never carries faces unless the experimenter adds the video on purpose)
+        if video { r.camera = SceneCamera(dir: dataRoot.appendingPathComponent("video/\(folder.lastPathComponent)"), framesDir: folder, quality: videoQuality) }
+        r.familyKey = study.familyKey
         r.onModuleDone = { [weak self] meta, id in Task { @MainActor in self?.recordProgress(meta, id) } }
         r.onFinished = { [weak self] meta in Task { @MainActor in self?.sessionFinished(meta) } }
         runner = r
@@ -416,8 +481,12 @@ final class AppModel: ObservableObject {
 
     private func sessionFinished(_ meta: SessionMeta) {
         if let n = number(of: meta) {
+            // v3.7: "can't do" is remembered for the person (per experiment family), not only for this session
+            let cant = runner?.state?.cantDo ?? []
+            let fam = runner?.familyKey ?? plan.familyKey
             roster.update(n) { p in
                 if let i = p.sessions.firstIndex(where: { $0.code == meta.session }) { p.sessions[i].status = meta.status }
+                if !cant.isEmpty { p.cantDo[fam] = Array(Set((p.cantDo[fam] ?? []) + cant)).sorted() }
             }
         }
         lastMeta = meta
@@ -437,7 +506,8 @@ final class AppModel: ObservableObject {
     func resume(_ folder: URL, _ state: SessionState) {
         participantNumber = number(of: state.meta)
         device = state.meta.device
-        launch(folder: folder, state: state, resuming: true)
+        launch(folder: folder, state: state, resuming: true,
+               video: state.meta.sceneVideo == true && participant?.videoConsent == true)   // consent may be withdrawn
     }
 
     func closeResumable(_ folder: URL, _ state: SessionState) {
@@ -449,6 +519,13 @@ final class AppModel: ObservableObject {
         enc.dateEncodingStrategy = .iso8601
         if let d = try? enc.encode(s) { try? d.write(to: folder.appendingPathComponent("state.json"), options: .atomic) }
         if let d = try? enc.encode(s.meta) { try? d.write(to: folder.appendingPathComponent("session.json"), options: .atomic) }
+        // v3.7: keep its "can't do" list too (there is no runner for a session closed from the start screen)
+        if let n = number(of: s.meta), let cant = s.cantDo, !cant.isEmpty {
+            var fam = plan.familyKey
+            if let d = try? Data(contentsOf: folder.appendingPathComponent("experiment.json")),
+               let ran = try? JSONDecoder().decode(StudyPlan.self, from: d) { fam = ran.familyKey }
+            roster.update(n) { p in p.cantDo[fam] = Array(Set((p.cantDo[fam] ?? []) + cant)).sorted() }
+        }
         sessionFinished(s.meta)
         screen = .start
     }
@@ -469,5 +546,6 @@ final class AppModel: ObservableObject {
         runner = nil
         preview = nil
         screen = .start
+        refreshDone()       // v3.7: the start screen shows the new counts at once
     }
 }

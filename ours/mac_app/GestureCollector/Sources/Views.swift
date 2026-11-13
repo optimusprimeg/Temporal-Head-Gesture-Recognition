@@ -49,6 +49,7 @@ struct StartView: View {
     @State private var glasses = false
     @State private var wear = ""
     @State private var consent = false
+    @State private var videoOK = false        // v3.7 optional scene video consent
     @State private var numberText = ""
     @State private var importing = false
     @State private var editName = ""          // v3.5 fix / remove a participant
@@ -135,14 +136,16 @@ struct StartView: View {
                             Toggle("Glasses", isOn: $glasses)
                         }
                         TextField("How they usually wear AirPods (optional)", text: $wear)
-                        Toggle("Consent: we record head motion only (no audio/video), stored with your first name and participant number for the CS724 project.", isOn: $consent)
+                        Toggle("Consent: we record head motion (no audio), stored with your first name and participant number for the CS724 project.", isOn: $consent)
+                        Toggle("Optional: may also be filmed by the webcam during sessions (no audio), to check the data and to show later participants how a gesture looks.", isOn: $videoOK)
                         Button("Add participant") {
                             let number = Int(numberText.trimmingCharacters(in: .whitespaces).uppercased()
                                 .replacingOccurrences(of: "P", with: ""))
                             model.addParticipant(firstName: firstName, profile: ["age": age, "hand": hand,
-                                                 "glasses": glasses ? "yes" : "no", "wear": wear, "consent": "yes"],
-                                                 number: number)
-                            firstName = ""; wear = ""; consent = false; numberText = ""
+                                                 "glasses": glasses ? "yes" : "no", "wear": wear, "consent": "yes",
+                                                 "video_consent": videoOK ? "yes" : "no"],
+                                                 number: number, videoConsent: videoOK)
+                            firstName = ""; wear = ""; consent = false; videoOK = false; numberText = ""
                         }.disabled(!consent || firstName.trimmingCharacters(in: .whitespaces).isEmpty)
                     }.padding(6)
                 }
@@ -174,6 +177,12 @@ struct StartView: View {
                                     }.disabled(editName.isEmpty && editNumber.isEmpty)
                                     Button("Remove \(p.code)...") { confirmRemove = true }.foregroundColor(.red)
                                 }
+                                Toggle("Agreed to the optional scene video (webcam)", isOn: Binding(
+                                    get: { p.videoConsent == true },
+                                    set: { v in
+                                        roster.update(p.number) { $0.videoConsent = v; $0.profile["video_consent"] = v ? "yes" : "no" }
+                                        if !v { model.sceneVideo = false }
+                                    }))
                                 Text(p.sessions.isEmpty ? "No recordings yet." :
                                      "The number cannot change after recording (it is in the folder names). Remove moves the \(p.sessions.count) session folder(s) to removed/, nothing is deleted.")
                                     .font(.caption).foregroundColor(.secondary)
@@ -192,9 +201,37 @@ struct StartView: View {
                                 ForEach(AppModel.devices, id: \.self) { Text($0) }
                             }.frame(maxWidth: 360)
                             .onChange(of: model.device) { _ in model.refreshDone() }
+                            if let last = p.lastDevice, last != model.device {
+                                Text("\(p.code) recorded on \(last) last time. Reps are counted per AirPods model, so this model starts from its own count. Switch back unless you really changed AirPods.")
+                                    .font(.caption).foregroundColor(.orange)
+                            } else {
+                                Text("Choose the AirPods being worn (logged with the session). Reps are counted per model; it defaults to the model used last time.")
+                                    .font(.caption).foregroundColor(.secondary)
+                            }
                             GestureChoice()
-                            Text("Suggested for \(p.code) by the crossover order. If you only have one model, choose the one you are wearing (it is logged).")
-                                .font(.caption).foregroundColor(.secondary)
+                            if SceneCamera.available {
+                                Toggle("Record scene video (webcam, no audio)", isOn: Binding(
+                                    get: { model.sceneVideo },
+                                    set: { v in
+                                        if v {
+                                            SceneCamera.requestAccess { ok in
+                                                model.sceneVideo = ok
+                                                if !ok { model.message = "Camera permission is off: System Settings > Privacy & Security > Camera." }
+                                            }
+                                        } else { model.sceneVideo = false }
+                                    }))
+                                    .disabled(p.videoConsent != true)
+                                if model.sceneVideo {
+                                    Picker("Video size", selection: $model.videoQuality) {
+                                        Text("Small: 480p, about 0.25 GB per hour").tag("small")
+                                        Text("Normal: 720p, about 0.5 GB per hour").tag("normal")
+                                    }.frame(maxWidth: 420)
+                                }
+                                Text(p.videoConsent == true
+                                     ? "Saved in the data folder's video/ folder (not in the session zip), with frame times on the sensor clock so any gesture can be cut out."
+                                     : "Needs \(p.firstName)'s video consent (tick it under Fix or remove \(p.code)).")
+                                    .font(.caption).foregroundColor(.secondary)
+                            }
                             AdaptiveStack {
                                 Text("Time available:")
                                 ForEach([10.0, 20.0, 40.0], id: \.self) { m in
@@ -232,13 +269,8 @@ struct CheckView: View {
             Text("Device check").font(.title).bold().onAppear { model.detectAirPods() }
             CheckLine(ok: rec.rateHz > 20, text: String(format: "Rate %.0f Hz (50, or 25 on some models)", rec.rateHz))
             CheckLine(ok: abs(rec.gravityNorm - 9.81) < 0.5, text: String(format: "|g| %.2f m/s² (about 9.81)", rec.gravityNorm))
-            if let need = model.plan.earbud {
-                CheckLine(ok: rec.location == need,
-                          text: rec.location == need ? "Streaming earbud: \(need) (as this experiment needs)"
-                              : "Streaming earbud: \(rec.location). This experiment needs the \(need.uppercased()) AirPod only: put the other one in its case.")
-            } else {
-                CheckLine(ok: rec.location != "-", text: "Streaming earbud: \(rec.location)")
-            }
+            // v3.7: the side is logged (session.json earbudSide + every stream row), never required
+            CheckLine(ok: rec.location != "-", text: "Streaming earbud: \(rec.location.uppercased()) (logged)")
             if let n = model.detected["name"] {
                 Text("\(Platform.isPhone ? "iPhone" : "macOS") sees: \(n)\(model.detected["productID"].map { "  (product \($0), firmware \(model.detected["firmware"] ?? "?"))" } ?? ""). Saved with the session; check it matches \"\(model.device)\".")
                     .font(.caption)
@@ -251,10 +283,11 @@ struct CheckView: View {
                     LiveHead(recorder: rec, reference: model.reference).frame(width: 240, height: 240)
                     Button("Set front (look straight ahead, then click)") { model.reference = rec.angles }
                 }
-                Text("Ask the participant to nod, tilt and turn: the head should follow.\n\n" + (model.plan.earbud.map {
-                    "Wear the \($0.uppercased()) AirPod only for the whole session (the other one in its case), so the data matches the team's recordings."
-                } ?? "Keep BOTH AirPods in for the whole session. If one comes out, the stream moves to the other bud and the app will ask for a new calibration."))
+                Text("Ask the participant to nod, tilt and turn: the head should follow.\n\n" + (model.plan.earbud != nil
+                    ? "Wear ONE AirPod (either side) for the whole session, the other one in its case. The side is logged; keep it the same for this person."
+                    : "Keep BOTH AirPods in for the whole session. If one comes out, the stream moves to the other bud and the app will ask for a new calibration."))
                     .frame(maxWidth: 360, alignment: .leading)
+                if model.sceneVideo && model.participant?.videoConsent == true { CameraAim() }
             }
             Spacer()
             if !rec.healthy { Text("Not ready yet").foregroundColor(.orange) }
@@ -287,6 +320,8 @@ struct ReviewView: View {
             Text("Session plan").font(.title).bold()
             if let p = model.participant, let pv = model.preview {
                 Text("\(model.plan.name): \(p.firstName) (\(p.code)), session \(p.sessions.count + 1), \(model.device), \(Int(model.budgetMin)) min available")
+                Text("This sitting: about \(model.minutes(pv.estimateS)). Everything \(p.firstName) still needs: about \(model.minutes(model.totalLeftS)) of gestures in total (the rest is planned next time).")
+                    .font(.callout).foregroundColor(.secondary)
                 let t = model.plan.timing
                 List {
                     Section("Always") {
@@ -336,9 +371,21 @@ struct RunView: View {
     var body: some View {
         PhoneScroll {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
+            HStack(spacing: 12) {
                 ProgressView(value: runner.progress).frame(maxWidth: .infinity)
                 Text("about \(model.minutes(runner.remainingS)) left").font(.caption)
+                if runner.camera != nil {
+                    Label("REC video", systemImage: "record.circle").font(.caption.bold()).foregroundColor(.red)
+                }
+                // v3.7: Pause where it can be reached at once; the step running now finishes first. (No space-bar
+                // shortcut: it would fire while typing a note.)
+                Button(runner.phase == .paused ? "Resume" : (runner.pausePending ? (Platform.isPhone ? "Pausing..." : "Pausing after this step...") : "Pause")) {
+                    runner.togglePause()
+                }
+                .controlSize(Platform.isPhone ? .regular : .large)
+                .buttonStyle(.borderedProminent)
+                .tint(runner.phase == .paused ? .green : .orange)
+                .disabled(runner.phase == .finished)
             }
             if !runner.banner.isEmpty {
                 Text(runner.banner).foregroundColor(.white).padding(8).background(Color.orange).cornerRadius(6)
@@ -384,10 +431,6 @@ struct RunView: View {
                 EmptyView()
             }
             Divider()
-            if let need = model.plan.earbud, rec.location != need, rec.location != "-" {
-                Text("Streaming from the \(rec.location.uppercased()) AirPod: this experiment needs the \(need.uppercased()) one only. Pause, swap, then Calibrate again.")
-                    .font(.headline).foregroundColor(.orange)
-            }
             HStack {
                 Text("\(rec.status) | \(Int(rec.rateHz)) Hz | earbud \(rec.location) | \(rec.segmentSamples) samples in this segment")
                     .font(.caption).foregroundColor(rec.healthy ? .secondary : .orange)
@@ -395,12 +438,14 @@ struct RunView: View {
             }
             GroupBox("Experimenter") {
                 AdaptiveStack {
-                    Button(runner.phase == .paused ? "Resume" : "Pause after this step") { runner.togglePause() }
+                    Button(runner.phase == .paused ? "Resume" : (runner.pausePending ? "Pausing after this step..." : "Pause after this step")) { runner.togglePause() }
                     Button("Skip this step") { runner.skip() }
                     Button("Calibrate again") { runner.requestRecalibration() }
                     Button(runner.endAfterRound ? "Will end after this round (undo)" : "End after this round") { runner.toggleEndAfterRound() }
-                    Button(runner.redoInfo.isEmpty ? "Last one was wrong: redo" : runner.redoInfo) { runner.markLastWrong() }
-                        .disabled(!runner.redoInfo.isEmpty)
+                    Button(!runner.redoInfo.isEmpty ? runner.redoInfo
+                           : (runner.markable.isEmpty ? "Last one was wrong: redo"
+                              : "Last one (\(runner.markable.replacingOccurrences(of: "_", with: " "))) was wrong: redo")) { runner.markLastWrong() }
+                        .disabled(!runner.redoInfo.isEmpty || runner.markable.isEmpty)
                     Button("Can't do this motion") { runner.cantDoCurrent() }
                         .disabled(runner.phase != .running || runner.motion.isEmpty)
                     TextField("note", text: $noteText).frame(maxWidth: 220)
@@ -451,14 +496,24 @@ struct DoneView: View {
         PhoneScroll {
         VStack(alignment: .leading, spacing: 12) {
             if let m = model.lastMeta {
-                Text(m.status == "complete" ? "Session complete" : "Session saved (incomplete)").font(.title).bold()
+                Text(m.status == "complete" ? "Session complete"
+                     : (m.endedBy == "end_after_round" ? "Stopped after a round (saved)" : "Session ended (saved)")).font(.title).bold()
                 Text("\(m.firstName), \(m.session) on \(m.device)")
                 Text("Core blocks done: " + (m.coreBlocksDone.isEmpty ? "none" : m.coreBlocksDone.joined(separator: ", ")))
                 Text("Modules done: " + (m.modulesDone.isEmpty ? "none" : m.modulesDone.joined(separator: ", ")))
                 Text("Earbud switches: \(m.earbudSwitches), data gaps: \(m.gaps), segments: \(m.segments)")
                 if m.status != "complete" {
-                    Text("Unfinished parts will be planned again next time this person is chosen (a module is always redone whole).")
+                    Text("Choose \(m.firstName) again next time: every good rep is kept, and the plan only asks for what is still missing.")
                         .foregroundColor(.secondary)
+                }
+                if m.sceneVideo == true {
+                    let vdir = model.dataRoot.appendingPathComponent("video/\(model.runner?.folder.lastPathComponent ?? "")")
+                    HStack {
+                        Text("Scene video: \(vdir.path) (not in the zip)").font(.caption).textSelection(.enabled)
+                        #if os(macOS)
+                        Button("Show video") { Platform.reveal(vdir) }.font(.caption)
+                        #endif
+                    }
                 }
             }
             AdaptiveStack {
@@ -482,13 +537,13 @@ struct DoneView: View {
             if let r = model.runner {
                 let rows = AppModel.sessionSummary(folder: r.folder)
                 if !rows.isEmpty {
-                    GroupBox("This session per gesture (good = done - marked wrong)") {
+                    GroupBox("This session per gesture (good = trials whose last try counted; a retake or redo is one trial)") {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 2) {
                                 ForEach(rows) { x in
                                     HStack {
                                         Text(x.motion.replacingOccurrences(of: "_", with: " ")).frame(width: 220, alignment: .leading)
-                                        Text("good \(x.done - x.wrong)").frame(width: 70, alignment: .leading)
+                                        Text("good \(x.good)").frame(width: 70, alignment: .leading)
                                         Text(x.flagged > 0 ? "flagged \(x.flagged)" : "").foregroundColor(.orange).frame(width: 80, alignment: .leading)
                                         Text(x.wrong > 0 ? "wrong \(x.wrong)" : "").foregroundColor(.red).frame(width: 70, alignment: .leading)
                                         Text(x.confused > 0 ? "confused \(x.confused)" : "").foregroundColor(.purple)
@@ -533,6 +588,7 @@ struct DoneView: View {
 /// the plan tops each chosen gesture up to its target. The choice is remembered per person.
 struct GestureChoice: View {
     @EnvironmentObject var model: AppModel
+    @State private var allTarget = 20
 
     private var groups: [(String, [MotionDef])] {
         var order: [String] = []
@@ -546,9 +602,9 @@ struct GestureChoice: View {
     }
 
     var body: some View {
-        let on = model.targets.count
-        let left = model.targets.reduce(0) { $0 + max(0, $1.value - (model.doneSoFar[$1.key] ?? 0)) }
-        DisclosureGroup("Gestures for this session: \(on) of \(model.plan.motions.count) on, \(left) good reps still to record") {
+        let t = model.effectiveTargets
+        let left = t.reduce(0) { $0 + max(0, $1.value - (model.doneSoFar[$1.key] ?? 0)) }
+        DisclosureGroup("Gestures: \(t.count) of \(model.plan.motions.count) on, \(left) good reps still to record (about \(model.minutes(model.totalLeftS)) in total)") {
             VStack(alignment: .leading, spacing: 6) {
                 AdaptiveStack {
                     ForEach(model.plan.presets ?? [], id: \.name) { pr in
@@ -556,6 +612,13 @@ struct GestureChoice: View {
                     }
                     Button("All") { model.setAll(true) }
                     Button("None") { model.setAll(false) }
+                }
+                // v3.7: one box for every gesture that is on
+                AdaptiveStack {
+                    Text("Target for all gestures that are on:")
+                    NumberBox(value: $allTarget)
+                    Button("Apply") { model.setAllTargets(allTarget) }
+                    Button("Reset to defaults") { model.resetTargets() }.font(.caption)
                 }
                 if model.plan.hasLongIdle {
                     Toggle("Long idles (3 x 60 s: still, talk, chew)", isOn: $model.longIdle)
@@ -567,8 +630,8 @@ struct GestureChoice: View {
                             ForEach(g.1, id: \.id) { m in row(m) }
                         }
                     }
-                }.frame(maxHeight: 300)
-                Text("Target = good reps this person should have in total (default from the experiment file). Done = good reps already recorded in earlier sessions. The plan only records what is missing, spread evenly over the rounds.")
+                }.frame(maxHeight: 320)
+                Text("Target = good reps this person should have in total (type it, or use - / +). Done = good reps already recorded (this experiment family and these AirPods; a retake or redo counts once). The plan only records what is missing, spread evenly over the rounds. The time above is for everything still missing; one sitting is cut to the time available.")
                     .font(.caption).foregroundColor(.secondary)
             }.padding(.leading, 4)
         }
@@ -576,21 +639,60 @@ struct GestureChoice: View {
 
     private func row(_ m: MotionDef) -> some View {
         let isOn = model.targets[m.id] != nil
+        let cant = model.cantDo.contains(m.id)
         let done = model.doneSoFar[m.id] ?? 0
+        let other = model.doneOtherDevices[m.id] ?? 0
         let target = model.targets[m.id] ?? (model.plan.defaultTargets[m.id] ?? 10)
+        let binding = Binding<Int>(get: { target }, set: { model.targets[m.id] = min(500, max(1, $0)) })
         return HStack(spacing: 8) {
             Toggle(m.id.replacingOccurrences(of: "_", with: " "),
                    isOn: Binding(get: { isOn }, set: { model.toggle(m.id, $0) }))
-                .frame(width: 260, alignment: .leading)
-            if isOn {
-                Stepper("target \(target)", value: Binding(get: { target }, set: { model.targets[m.id] = max(1, $0) }),
-                        in: 1...100)
-                    .frame(width: 150)
-                Text(done >= target ? "done \(done) ✓" : "done \(done)")
+                .frame(width: Platform.isPhone ? 170 : 240, alignment: .leading)
+            if cant {
+                Text("can't do").foregroundColor(.orange)
+                Button("Allow again") { model.allowAgain(m.id) }.font(.caption)
+            } else if isOn {
+                Text("target")
+                NumberBox(value: binding)
+                Stepper("", value: binding, in: 1...500).labelsHidden()
+                Text(done >= target ? "done \(done) ✓" : "done \(done) · \(target - done) to go")
                     .foregroundColor(done >= target ? .green : .secondary)
             } else if done > 0 {
                 Text("done \(done)").foregroundColor(.secondary)
             }
+            if other > 0 && done == 0 {
+                Text("(\(other) on other AirPods)").foregroundColor(.orange)
+            }
         }.font(.caption)
+    }
+}
+
+/// v3.7: a small box to type a whole number (1...500). Empty or not a number keeps the old value.
+struct NumberBox: View {
+    @Binding var value: Int
+    var body: some View {
+        TextField("", value: $value, format: .number)
+            .textFieldStyle(.roundedBorder)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 58)
+            #if os(iOS)
+            .keyboardType(.numberPad)
+            #endif
+    }
+}
+
+/// v3.7: live camera picture on the device check, to aim the webcam before a session with scene video.
+struct CameraAim: View {
+    @StateObject private var cam = CameraPreviewModel()
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            CameraPreview(session: cam.session)
+                .frame(width: 240, height: 160)
+                .background(Color.black)
+                .cornerRadius(6)
+            Text("Scene video: face and shoulders in view, good light.").font(.caption)
+        }
+        .onAppear { cam.start() }
+        .onDisappear { cam.stop() }
     }
 }

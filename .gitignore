@@ -16,3 +16,7 @@ ours/mac_app/AirPodsCheck.zip
 # group paper drafts (teammates' writing): add to git only when the group agrees
 paper/
 ours/algorithm/results/*_steps.json
+# scene videos from the app (faces): never in git
+*.mp4
+*.mov
+clips/

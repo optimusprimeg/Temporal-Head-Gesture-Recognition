@@ -1,6 +1,6 @@
 {
   "name": "Teammates v5 (rounds)",
-  "version": "v5-rounds-1",
+  "version": "v5-rounds-2",
   "about": "collector_v5's 30 items with the same labels: 23 gestures + 4 short idles in random rounds (each once per round, 3 s window), then 3 x 60 s idle. Converts to the v5 CSV with app_to_v5_csv.py. About 3.5 min per round.",
   "motions": [
     {
@@ -317,7 +317,8 @@
   },
   "practicePerMotionFirst": 1,
   "practicePerMotionLater": 0,
-  "earbud": "right",
+  "earbud": "one",
+  "family": "v5",
   "feedbackGroups": [
     "head",
     "face",
@@ -393,6 +394,40 @@
         "circle_ccw",
         "rotate_left_chin_down",
         "rotate_right_chin_down",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Face only",
+      "motions": [
+        "mouth_open_2x",
+        "puff_cheeks_2x",
+        "jaw_shift_left_right",
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_forward_2x",
+        "jaw_clench_double",
+        "eyebrow_up_down_2x",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Combos only",
+      "motions": [
+        "eyebrow_then_mouth_open",
+        "mouth_open_then_eyebrow",
+        "eyebrow_then_puff_cheeks",
+        "mouth_open_then_puff_cheeks",
+        "puff_cheeks_then_eyebrow",
+        "jaw_left_then_eyebrow",
+        "eyebrow_then_jaw_left",
+        "jaw_right_then_eyebrow",
         "idle_still",
         "idle_talk",
         "idle_chew",

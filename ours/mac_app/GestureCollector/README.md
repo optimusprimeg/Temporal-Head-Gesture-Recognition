@@ -1,4 +1,4 @@
-# Gesture Collector (Mac + iPhone app, v3)
+# Gesture Collector (Mac + iPhone app, v3.7)
 
 The data-collection app from `../APP_V2_PLAN.md`, **build step 1**. It replaces collector v3 + Sensor Logger:
 one Mac with AirPods runs the whole session. It explains the motions, gives spoken cues through the AirPods,
@@ -6,6 +6,47 @@ records continuously, and resumes after a crash.
 
 **Status:** written on Windows; it must compile on GitHub (macOS runner) and be tried on a Mac before real
 participants. The live head's left/right signs are still to be checked.
+
+## New in v3.7: counting fixes, one earbud either side, Pause on top, optional scene video
+Fixes to v3.4-3.6 design mistakes (found in an audit of the code and P01's data):
+- **AirPods model no longer changes by itself.** The start screen used to pick the model by the old two-model
+  crossover (odd/even participant number, then the other model). Counts are per model, so a silent switch showed
+  "done 0" and a full new plan. Now: the model this person used last; an orange note if you pick another one.
+- **A trial counts once.** v3.6 counted every "done" row, so a failed check + its retake counted 2 good reps
+  (P01: 11 of 91 gestures were retakes). Now one planned trial (rounds block, round, motion) = at most one good rep;
+  it is good when its last try is done (a "marked wrong" with no redo = 0). Same rule in the end-of-session table and
+  in `scripts/cut_scene_clips.py`.
+- **One earbud, either side.** `"earbud": "one"` (v5, v5_plus): wear ONE AirPod, any side; it is logged
+  (session.json `earbudSide`, and every stream row's `sensor_location`), never required. v3.5 wrongly required the
+  RIGHT one. Old files with `"right"` are read the same way (no warning).
+- **v5 and v5_plus share counts** (`"family": "v5"`): a gesture recorded under one counts under the other.
+- **"Can't do" is remembered** for the person (roster.json `cantDo`, per family), so that gesture no longer stays
+  "missing" forever; "Allow again" on the start screen.
+- **Same checks in every session:** the DTW match (templates from practice, which only session 1 has) is still
+  logged in `check_dtw` but no longer votes; retakes depend on the rules + model only. (Face/micro gestures never
+  got retakes or "looked like" feedback: those need a head motion check.)
+- **Targets:** type the number (box) or use - / +; one box sets every gesture that is on; "Reset to defaults".
+- **Time left in total:** the gestures header and the plan screen show what ALL of this person's missing reps would
+  take, besides this sitting's budget (the old screen only showed the budget, e.g. "45 min" again and again).
+- **Run screen:** a big **Pause / Resume** at the top ("Pausing after this step..." until the current step ends);
+  "Last one (nod down) was wrong" names the trial and only works right after a gesture (not across a break or
+  calibration); the end screen says "Stopped after a round" vs "Session ended" (`endedBy` in session.json).
+- **Data folder guard (Mac):** "Change..." refuses a folder inside a data folder (experiments, media, a session,
+  removed, video): that is how a second roster.json appeared and sessions looked lost.
+- **Optional scene video (webcam, no audio).** Needs the person's video consent (new participant form, or "Fix or
+  remove" for existing ones) and the session switch "Record scene video". The device check shows the camera to aim
+  it. Files: `<data folder>/video/<session folder>/scene_NNN.mp4` (H.264 720p, one per segment, OUTSIDE the session
+  folder so the zip never carries faces) and `<session folder>/scene_NNN_frames.csv` (frame, video_s, sensor_ns on
+  the cues.csv clock). `python scripts/cut_scene_clips.py <session folder> [--label]` (from ours/algorithm, needs
+  ffmpeg) cuts one clip per kept trial into `clips/<motion>/`: real demos for later pilots, and label checks.
+  Videos are gitignored; share only with consent.
+- **Video size:** HEVC (H.265; H.264 where there is no HEVC encoder), 15 fps, no audio. "Small" 480p is about
+  0.25 GB per hour (default), "Normal" 720p about 0.5 GB per hour (choice remembered, saved as `videoQuality`).
+- **Presets:** v5 now has All v5 / Micro only (face + combos) / Head only / Face only / Combos only / Weak ones;
+  v5_plus adds 1x + 2x / Extras pilot / Face + face extras / Touch only / Near-miss.
+- Sessions saved before v3.7 (no `family` in their experiment.json) still count: the shipped v5 / v5_plus names
+  map to family v5.
+- Removed the unused v3.4 round-counting code.
 
 ## New in v3.6: choose gestures and target reps per person
 - Start screen, under the chosen person: **"Gestures for this session"**. Presets from the experiment file

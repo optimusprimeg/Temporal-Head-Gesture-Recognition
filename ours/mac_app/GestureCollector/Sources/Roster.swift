@@ -22,6 +22,11 @@ struct Participant: Codable, Hashable, Identifiable {
     var modulesByDevice: [String: [String]] = [:]   // v3: device -> module ids done on that device
     var sessions: [SessionRecord] = []
     var selections: [String: [String: Int]] = [:]   // v3.6: experiment name -> chosen motion -> target reps
+    var cantDo: [String: [String]] = [:]            // v3.7: experiment family -> motions this person cannot do
+    var videoConsent: Bool? = nil                   // v3.7: agreed to the optional scene video (webcam)
+
+    /// v3.7: the AirPods model of this person's latest session (the default for the next one).
+    var lastDevice: String? { sessions.last?.device }
 
     var id: Int { number }
     var code: String { String(format: "P%02d", number) }
@@ -43,6 +48,8 @@ struct Participant: Codable, Hashable, Identifiable {
         modulesByDevice = try c.decodeIfPresent([String: [String]].self, forKey: .modulesByDevice) ?? [:]
         sessions = try c.decodeIfPresent([SessionRecord].self, forKey: .sessions) ?? []
         selections = try c.decodeIfPresent([String: [String: Int]].self, forKey: .selections) ?? [:]
+        cantDo = try c.decodeIfPresent([String: [String]].self, forKey: .cantDo) ?? [:]
+        videoConsent = try c.decodeIfPresent(Bool.self, forKey: .videoConsent)
     }
 
     func coreBlocksDone(device: String) -> [String] { coreDone[device] ?? [] }
@@ -123,6 +130,12 @@ final class RosterStore: ObservableObject {
             let src = dataRoot.appendingPathComponent(s.folder)
             if fm.fileExists(atPath: src.path), (try? fm.moveItem(at: src, to: dest.appendingPathComponent(s.folder))) != nil {
                 moved += 1
+            }
+            // v3.7: the session's scene video (kept outside the session folder) goes along
+            let vid = dataRoot.appendingPathComponent("video/\(s.folder)")
+            if fm.fileExists(atPath: vid.path) {
+                try? fm.createDirectory(at: dest.appendingPathComponent("video"), withIntermediateDirectories: true)
+                try? fm.moveItem(at: vid, to: dest.appendingPathComponent("video/\(s.folder)"))
             }
         }
         let enc = JSONEncoder()

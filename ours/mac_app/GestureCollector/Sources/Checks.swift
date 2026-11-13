@@ -77,11 +77,14 @@ struct TrialCheck {
     var flags: [String] = []
 
     /// "ok", "mismatch", "unsure" (only one check could vote and it disagreed) or "" (no check could vote).
+    /// v3.7: only the rules and the model vote. The DTW match is still logged (check_dtw) but no longer votes: its
+    /// templates come from practice, which only the first session has, so sessions were not checked the same way.
     func vote(expected: String) -> String {
-        let votes = [rule, model, dtw].filter { !$0.isEmpty }
+        let votes = [rule, model].filter { !$0.isEmpty }
         guard !votes.isEmpty else { return "" }
         let disagree = votes.filter { $0 != expected }.count
-        if votes.count >= 2 { return disagree * 2 > votes.count ? "mismatch" : "ok" }
+        // two voters: both disagree = mismatch (retake), one disagrees = unsure (flag only)
+        if votes.count == 2 { return disagree == 2 ? "mismatch" : (disagree == 1 ? "unsure" : "ok") }
         return disagree == 0 ? "ok" : "unsure"
     }
 }

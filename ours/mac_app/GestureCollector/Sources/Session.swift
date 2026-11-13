@@ -11,7 +11,7 @@
 import AVFoundation
 import Foundation
 
-let APP_VERSION = "3.6.0"
+let APP_VERSION = "3.7.0"
 let PROTOCOL_VERSION = "v3.2-2026-11"   // v3: experiment files; v3.1: trial checks + retake; v3.2: the name is the go
 // v2.1: shown_sensor_ns = when the cue was announced (text + spoken name); people start moving from there, so the
 // labeller opens the motion window at the announcement, not at GO. live_* = the app's own one-motion check.
@@ -55,6 +55,12 @@ struct SessionMeta: Codable {
     // v3.6: the chosen gestures and their target good reps for this person (nil = whole experiment, rounds as planned)
     var targets: [String: Int]? = nil
     var longIdle: Bool? = nil
+    // v3.7: the earbud side streaming at the start (every stream row also has sensor_location), whether a scene video
+    // was recorded (files in <data folder>/video/<session folder>/), and how the session ended
+    var earbudSide: String? = nil
+    var sceneVideo: Bool? = nil
+    var videoQuality: String? = nil  // "small" (480p) / "normal" (720p); HEVC, H.264 if HEVC is not available
+    var endedBy: String? = nil      // complete / end_after_round / end_session
 }
 
 struct SessionState: Codable {
@@ -135,6 +141,10 @@ final class SessionRunner: ObservableObject {
     @Published var feedback = ""         // result of the one-motion check for the last trial
     @Published var feedbackOK = true
     @Published var endAfterRound = false  // v3.1: stop cleanly when the current round is finished
+    @Published var pausePending = false   // v3.7: Pause pressed, the current step is finishing first
+    @Published var markable = ""          // v3.7: the gesture "Last one was wrong" would mark ("" = nothing to mark)
+    var familyKey = ""                    // v3.7: the experiment family (can't-do is remembered per family)
+    var camera: SceneCamera?              // v3.7: optional scene video, one file per segment like the stream
     @Published private(set) var state: SessionState?
 
     let folder: URL
@@ -155,6 +165,7 @@ final class SessionRunner: ObservableObject {
     private var skipFlag = false
     private var pauseRequested = false
     private var stopRequested = false
+    private var endedAfterRound = false
     private var recalibrateRequested = false
     private var switchDuringStep = false
     // v3.5 experimenter "last one was wrong": the last logged gesture trial, and a redo waiting to be inserted
@@ -230,6 +241,7 @@ final class SessionRunner: ObservableObject {
         state = s
         if status == "done", ["rounds", "practice", "commands"].contains(st.cueKind), st.motion != "idle" {
             lastTrial = (st, s.trial, shownNs ?? sensorNs)
+            markable = st.motion
         }
         if let d = (fields.map(csv).joined(separator: ",") + "\n").data(using: .utf8) { cueFile?.write(d) }
         try? cueFile?.synchronize()
@@ -245,8 +257,11 @@ final class SessionRunner: ObservableObject {
     func pressContinue() { continueFlag = true }
     func skip() { skipFlag = true; note("experimenter: skip") }
     func togglePause() {
-        if phase == .paused { pauseRequested = false; note("experimenter: resume") }
-        else { pauseRequested = true; note("experimenter: pause after this step") }
+        if phase == .paused || pausePending {
+            pauseRequested = false; pausePending = false; note("experimenter: resume")
+        } else {
+            pauseRequested = true; pausePending = true; note("experimenter: pause after this step")
+        }
     }
     func requestRecalibration() { recalibrateRequested = true; note("experimenter: recalibrate") }
     func stop() { stopRequested = true; skipFlag = true; continueFlag = true; note("experimenter: end session") }
@@ -262,6 +277,7 @@ final class SessionRunner: ObservableObject {
         logCue(last.step, hostNs: hostNowNs(), sensorNs: last.shownNs, status: "marked_wrong",
                note: "experimenter: trial \(last.trial) was wrong", shownNs: last.shownNs)
         lastTrial = nil                      // marking the same trial twice does nothing
+        markable = ""
         var again = last.step
         again.note = [last.step.note, "redo: trial \(last.trial) marked wrong"].filter { !$0.isEmpty }.joined(separator: "; ")
         again.sub = "AGAIN: " + last.step.sub
@@ -319,6 +335,11 @@ final class SessionRunner: ObservableObject {
             }
         }
         recorder.engine.onEarbudSwitch = nil
+        if let cam = camera {
+            // same number as the stream segment; frame times on the sensor clock go to scene_NNN_frames.csv
+            let n = s.meta.segments - 1
+            cam.start(segment: n) { [weak self] msg in Task { @MainActor in self?.note("scene video: " + msg) } }
+        }
         phase = .running
         Platform.configureAudio()
         Platform.keepAwake(true)
@@ -367,6 +388,7 @@ final class SessionRunner: ObservableObject {
     private func loop() async {
         while let s = state, s.index < s.steps.count, !stopRequested {
             if pauseRequested {
+                pausePending = false
                 phase = .paused
                 title = "PAUSED"
                 sub = "Press Resume when ready."
@@ -439,6 +461,7 @@ final class SessionRunner: ObservableObject {
                 let sameRound = next.map { $0.kind == .cue && $0.block == step.block && $0.round == step.round && step.round > 0 } ?? false
                 if !sameRound {
                     note("ended after the round (experimenter)")
+                    endedAfterRound = true
                     stopRequested = true
                 }
             }
@@ -463,6 +486,8 @@ final class SessionRunner: ObservableObject {
     }
 
     private func run(_ st: Step) async {
+        // v3.7: "Last one was wrong" only right after a gesture: not across a break, a message or a calibration
+        if st.kind != .cue || st.cueKind == "calibration" { lastTrial = nil; markable = "" }
         title = st.text
         sub = st.sub
         motion = ""
@@ -601,10 +626,13 @@ final class SessionRunner: ObservableObject {
     private func finish() {
         guard var s = state else { return }
         s.meta.ended = Date()
-        s.meta.status = (s.index >= s.steps.count && !stopRequested) ? "complete" : "incomplete"
+        let complete = s.index >= s.steps.count && !stopRequested
+        s.meta.status = complete ? "complete" : "incomplete"
+        s.meta.endedBy = complete ? "complete" : (endedAfterRound ? "end_after_round" : "end_session")
         state = s
         saveState()
         recorder.stopSegment()
+        camera?.stop()
         try? cueFile?.close()
         try? noteFile?.close()
         recorder.onSwitch = nil
@@ -614,7 +642,9 @@ final class SessionRunner: ObservableObject {
         recorder.engine.onCalibrated = nil
         Platform.keepAwake(false)
         phase = .finished
-        title = s.meta.status == "complete" ? "DONE. Thank you!" : "Session ended early (saved)"
+        title = complete ? "DONE. Thank you!"
+            : (endedAfterRound ? "Stopped after the round (saved). Next time continues from here."
+               : "Session ended (saved). The unfinished round is planned again next time.")
         sub = ""
         onFinished?(s.meta)
     }

@@ -1,6 +1,6 @@
 {
   "name": "v5 plus (1x, extras, near-miss)",
-  "version": "v5-plus-1",
+  "version": "v5-plus-2",
   "about": "The 30 v5 items + single (1x) versions at half the reps + our extra (candidate) gestures every 3rd round + near-miss cues (NOT commands) in random rounds, then 3 x 60 s idle; extra modules fill the time (near-miss block first). About 6 min per round. Converts to the v5 CSV with app_to_v5_csv.py (extra labels kept as they are).",
   "motions": [
     {
@@ -606,7 +606,8 @@
     "smallPeakRot": 0.15,
     "postureJumpDeg": 25
   },
-  "earbud": "right",
+  "earbud": "one",
+  "family": "v5",
   "feedbackGroups": [
     "head",
     "face",
@@ -690,6 +691,40 @@
       ]
     },
     {
+      "name": "Face only",
+      "motions": [
+        "mouth_open_2x",
+        "puff_cheeks_2x",
+        "jaw_shift_left_right",
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_forward_2x",
+        "jaw_clench_double",
+        "eyebrow_up_down_2x",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Combos only",
+      "motions": [
+        "eyebrow_then_mouth_open",
+        "mouth_open_then_eyebrow",
+        "eyebrow_then_puff_cheeks",
+        "mouth_open_then_puff_cheeks",
+        "puff_cheeks_then_eyebrow",
+        "jaw_left_then_eyebrow",
+        "eyebrow_then_jaw_left",
+        "jaw_right_then_eyebrow",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
       "name": "Weak ones",
       "motions": [
         "smile_2x",
@@ -735,6 +770,41 @@
         "tongue_cheek_left",
         "tongue_cheek_right",
         "sniff_2x",
+        "tap_cheek_2x_left",
+        "tap_chin_2x",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Face + face extras",
+      "motions": [
+        "mouth_open_2x",
+        "puff_cheeks_2x",
+        "jaw_shift_left_right",
+        "smile_2x",
+        "molar_tap_2x",
+        "jaw_forward_2x",
+        "jaw_clench_double",
+        "eyebrow_up_down_2x",
+        "smirk_left",
+        "smirk_right",
+        "tongue_cheek_left",
+        "tongue_cheek_right",
+        "sniff_2x",
+        "idle_still",
+        "idle_talk",
+        "idle_chew",
+        "idle_swallow"
+      ]
+    },
+    {
+      "name": "Touch only",
+      "motions": [
+        "earlobe_pull_left",
+        "earlobe_pull_right",
         "tap_cheek_2x_left",
         "tap_chin_2x",
         "idle_still",

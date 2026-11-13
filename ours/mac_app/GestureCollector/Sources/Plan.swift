@@ -194,11 +194,20 @@ struct StudyPlan: Codable, Hashable {
     var requireOneOf: [[String]] = []     // module id groups: at least one of each per person
     var modulesPerDevice: Bool = false
     var fillModule: String? = "G"
-    var earbud: String? = nil             // v3.5: "right" / "left" = record with that AirPod only (teammates: right)
+    var earbud: String? = nil             // v3.7: "one" (or any value) = wear ONE AirPod, either side; the side is logged.
+                                          // v3.5 files say "right": no longer a requirement (the side is recorded per sample).
+    var family: String? = nil             // v3.7: experiments with the same family share a person's good-rep counts
+                                          // (v5 and v5_plus); nil = the experiment name
     var feedbackGroups: [String]? = nil   // v3.5: end-of-session 1-5 ratings, one per motion group (nil = none)
     var presets: [PresetDef]? = nil       // v3.6: named gesture sets for the start screen ("long_idle" = the 60 s idles)
 
     func motion(_ id: String) -> MotionDef? { motions.first { $0.id == id } }
+
+    /// v3.7: reps of the same gesture id count across all experiments of one family (v5 and v5_plus).
+    /// Sessions saved before v3.7 have no "family" in their experiment.json: map the shipped names, so their
+    /// reps still count (else every earlier v5 session would show "done 0" after the update).
+    var familyKey: String { family ?? StudyPlan.legacyFamily[name] ?? name }
+    static let legacyFamily = ["Teammates v5 (rounds)": "v5", "v5 plus (1x, extras, near-miss)": "v5"]
 
     /// v3.6: the core rounds block's planned rounds (for default targets).
     var coreRounds: Int { core.first { $0.kind == .rounds }?.rounds ?? 10 }
@@ -257,6 +266,7 @@ struct StudyPlan: Codable, Hashable {
         modulesPerDevice = try c.decodeIfPresent(Bool.self, forKey: .modulesPerDevice) ?? false
         fillModule = try c.decodeIfPresent(String.self, forKey: .fillModule) ?? "G"
         earbud = try c.decodeIfPresent(String.self, forKey: .earbud)
+        family = try c.decodeIfPresent(String.self, forKey: .family)
         feedbackGroups = try c.decodeIfPresent([String].self, forKey: .feedbackGroups)
         presets = try c.decodeIfPresent([PresetDef].self, forKey: .presets)
     }
